@@ -89,6 +89,11 @@ logs_max_backups = 5
 [collectors.nmxt]
 scrape_interval = "1m"
 
+[collectors.nvos]
+poll_interval = "1m"
+gnmi_port = 9339
+request_timeout = "30s"
+
 # ==============================================================================
 # Metrics
 # ==============================================================================

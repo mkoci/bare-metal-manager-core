@@ -201,6 +201,9 @@ pub struct CollectorsConfig {
 
     /// Switch NMX-T collector configuration (if present, nmxt collector is enabled)
     pub nmxt: Configurable<NmxtCollectorConfig>,
+
+    /// NVOS collector configuration for direct NVUE REST + gNMI polling of NVLink switches
+    pub nvos: Configurable<NvosCollectorConfig>,
 }
 
 impl Default for CollectorsConfig {
@@ -210,6 +213,7 @@ impl Default for CollectorsConfig {
             firmware: Configurable::Disabled,
             logs: Configurable::Disabled,
             nmxt: Configurable::Disabled,
+            nvos: Configurable::Disabled,
         }
     }
 }
@@ -313,6 +317,31 @@ impl Default for NmxtCollectorConfig {
     fn default() -> Self {
         Self {
             scrape_interval: Duration::from_secs(60),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct NvosCollectorConfig {
+    /// Interval between NVUE REST + gNMI poll iterations.
+    #[serde(with = "humantime_serde")]
+    pub poll_interval: Duration,
+
+    /// gNMI server port on the switch.
+    pub gnmi_port: u16,
+
+    /// Timeout for individual REST/gNMI requests.
+    #[serde(with = "humantime_serde")]
+    pub request_timeout: Duration,
+}
+
+impl Default for NvosCollectorConfig {
+    fn default() -> Self {
+        Self {
+            poll_interval: Duration::from_secs(60),
+            gnmi_port: 9339,
+            request_timeout: Duration::from_secs(30),
         }
     }
 }
@@ -498,6 +527,7 @@ mod tests {
         assert!(config.collectors.sensors.is_enabled());
         assert!(config.collectors.firmware.is_enabled());
         assert!(config.collectors.logs.is_enabled());
+        assert!(config.collectors.nvos.is_enabled());
         assert!(!config.sinks.tracing.is_enabled());
         assert!(config.sinks.prometheus.is_enabled());
 
@@ -626,5 +656,66 @@ cache_size = 50
         assert_eq!(config.cache_size, 100);
         assert_eq!(config.metrics.endpoint, "0.0.0.0:9009");
         assert!(config.rate_limit.is_enabled());
+        assert!(!config.collectors.nvos.is_enabled());
+    }
+
+    #[test]
+    fn test_nvos_config_parsing() {
+        let toml_content = r#"
+[endpoint_sources.carbide_api]
+enabled = false
+
+[sinks.health_override]
+enabled = false
+
+[collectors.nvos]
+poll_interval = "2m"
+gnmi_port = 9339
+request_timeout = "45s"
+"#;
+
+        let config: Config = Figment::new()
+            .merge(Serialized::defaults(Config::default()))
+            .merge(Toml::string(toml_content))
+            .extract()
+            .expect("failed to parse nvos config");
+
+        assert!(config.collectors.nvos.is_enabled());
+
+        if let Configurable::Enabled(ref nvos) = config.collectors.nvos {
+            assert_eq!(nvos.poll_interval, Duration::from_secs(120));
+            assert_eq!(nvos.gnmi_port, 9339);
+            assert_eq!(nvos.request_timeout, Duration::from_secs(45));
+        } else {
+            panic!("nvos config should be enabled");
+        }
+    }
+
+    #[test]
+    fn test_nvos_config_disabled_by_default() {
+        let config = Config::default();
+        assert!(!config.collectors.nvos.is_enabled());
+    }
+
+    #[test]
+    fn test_nvos_config_explicit_disable() {
+        let toml_content = r#"
+[endpoint_sources.carbide_api]
+enabled = false
+
+[sinks.health_override]
+enabled = false
+
+[collectors.nvos]
+enabled = false
+"#;
+
+        let config: Config = Figment::new()
+            .merge(Serialized::defaults(Config::default()))
+            .merge(Toml::string(toml_content))
+            .extract()
+            .expect("failed to parse");
+
+        assert!(!config.collectors.nvos.is_enabled());
     }
 }
