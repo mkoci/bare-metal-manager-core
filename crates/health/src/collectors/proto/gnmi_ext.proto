@@ -1,0 +1,110 @@
+//
+// Copyright 2018 Google Inc. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+syntax = "proto3";
+
+import "google/protobuf/duration.proto";
+
+package gnmi_ext;
+
+option go_package = "github.com/openconfig/gnmi/proto/gnmi_ext";
+
+message Extension {
+  oneof ext {
+    RegisteredExtension registered_ext = 1;
+    MasterArbitration master_arbitration = 2;
+    History history = 3;
+    Commit commit = 4;
+    Depth depth = 5;
+    ConfigSubscription config_subscription = 6;
+  }
+}
+
+message RegisteredExtension {
+  ExtensionID id = 1;
+  bytes msg = 2;
+}
+
+enum ExtensionID {
+  EID_UNSET = 0;
+  EID_EXPERIMENTAL = 999;
+}
+
+message MasterArbitration {
+  Role role = 1;
+  Uint128 election_id = 2;
+}
+
+message Uint128 {
+  uint64 high = 1;
+  uint64 low = 2;
+}
+
+message Role {
+  string id = 1;
+}
+
+message History {
+  oneof request {
+    int64 snapshot_time = 1;
+    TimeRange range = 2;
+  }
+}
+
+message TimeRange {
+  int64 start = 1;
+  int64 end = 2;
+}
+
+message Commit {
+  string id = 1;
+  oneof action {
+    CommitRequest commit = 2;
+    CommitConfirm confirm = 3;
+    CommitCancel cancel = 4;
+    CommitSetRollbackDuration set_rollback_duration = 5;
+  }
+}
+
+message CommitRequest {
+  google.protobuf.Duration rollback_duration = 1;
+}
+
+message CommitConfirm {}
+
+message CommitCancel {}
+
+message CommitSetRollbackDuration {
+  google.protobuf.Duration rollback_duration = 1;
+}
+
+message Depth {
+  uint32 level = 1;
+}
+
+message ConfigSubscription {
+  oneof action {
+    ConfigSubscriptionStart start = 1;
+    ConfigSubscriptionSyncDone sync_done = 2;
+  }
+}
+
+message ConfigSubscriptionStart {}
+
+message ConfigSubscriptionSyncDone {
+  string commit_confirm_id = 1;
+  string server_commit_id = 2;
+  bool done = 3;
+}

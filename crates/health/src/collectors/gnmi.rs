@@ -15,16 +15,11 @@
  * limitations under the License.
  */
 
-mod firmware;
-mod logs;
-mod nmxt;
-mod runtime;
-mod sensors;
-
-pub(crate) mod gnmi;
-
-pub use firmware::{FirmwareCollector, FirmwareCollectorConfig};
-pub use logs::{LogFileWriter, LogsCollector, LogsCollectorConfig, create_log_file_writer};
-pub use nmxt::{NmxtCollector, NmxtCollectorConfig};
-pub use runtime::{Collector, IterationResult, PeriodicCollector};
-pub use sensors::{SensorCollector, SensorCollectorConfig};
+#[allow(clippy::enum_variant_names)]
+pub mod proto {
+    #[allow(clippy::enum_variant_names)]
+    pub mod gnmi_ext {
+        tonic::include_proto!("gnmi_ext");
+    }
+    tonic::include_proto!("gnmi");
+}
