@@ -15,17 +15,5 @@
  * limitations under the License.
  */
 
-mod firmware;
-mod logs;
-mod nmxt;
-mod runtime;
-mod sensors;
-
-#[allow(dead_code)] // consumed by NvosCollector in a later commit
-pub(crate) mod nvos;
-
-pub use firmware::{FirmwareCollector, FirmwareCollectorConfig};
-pub use logs::{LogFileWriter, LogsCollector, LogsCollectorConfig, create_log_file_writer};
-pub use nmxt::{NmxtCollector, NmxtCollectorConfig};
-pub use runtime::{Collector, IterationResult, PeriodicCollector};
-pub use sensors::{SensorCollector, SensorCollectorConfig};
+pub(crate) mod gnmi;
+pub(crate) mod nvue_client;

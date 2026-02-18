@@ -65,7 +65,7 @@ bucket_replenish = "35ms"
 max_jitter = "40ms"
 
 # ==============================================================================
-# Collectors: What data to collect from BMCs and NMX-T enabled switches
+# Collectors: What data to collect from BMCs, NMX-T, and NVOS (NVUE/gNMI) enabled switches
 # ==============================================================================
 
 [collectors.sensors]
@@ -93,6 +93,13 @@ scrape_interval = "1m"
 poll_interval = "1m"
 gnmi_port = 9339
 request_timeout = "30s"
+
+# NVUE REST paths to poll (all enabled by default)
+# [collectors.nvos.nvue_paths]
+# system_health_enabled = true
+# cluster_apps_enabled = true
+# sdn_partitions_enabled = true
+# interfaces_enabled = true
 
 # ==============================================================================
 # Metrics

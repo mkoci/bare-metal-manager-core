@@ -331,9 +331,15 @@ pub struct NvosCollectorConfig {
     /// gNMI server port on the switch.
     pub gnmi_port: u16,
 
+    /// use the default NVOS self-signed TLS certificate.
+    pub self_signed_tls: bool,
+
     /// Timeout for individual REST/gNMI requests.
     #[serde(with = "humantime_serde")]
     pub request_timeout: Duration,
+
+    /// NVUE REST paths to poll.
+    pub nvue_paths: NvuePaths,
 }
 
 impl Default for NvosCollectorConfig {
@@ -341,7 +347,29 @@ impl Default for NvosCollectorConfig {
         Self {
             poll_interval: Duration::from_secs(60),
             gnmi_port: 9339,
+            self_signed_tls: true,
             request_timeout: Duration::from_secs(30),
+            nvue_paths: NvuePaths::default(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct NvuePaths {
+    pub system_health_enabled: bool,
+    pub cluster_apps_enabled: bool,
+    pub sdn_partitions_enabled: bool,
+    pub interfaces_enabled: bool,
+}
+
+impl Default for NvuePaths {
+    fn default() -> Self {
+        Self {
+            system_health_enabled: true,
+            cluster_apps_enabled: true,
+            sdn_partitions_enabled: true,
+            interfaces_enabled: true,
         }
     }
 }
@@ -550,6 +578,15 @@ mod tests {
         assert_eq!(config.shards_count, 1);
 
         assert_eq!(config.cache_size, 100);
+
+        if let Configurable::Enabled(ref nvos) = config.collectors.nvos {
+            assert_eq!(nvos.poll_interval, Duration::from_secs(60));
+            assert_eq!(nvos.gnmi_port, 9339);
+            assert!(nvos.self_signed_tls);
+            assert_eq!(nvos.request_timeout, Duration::from_secs(30));
+        } else {
+            panic!("nvos config should be enabled in example config");
+        }
     }
 
     #[test]
@@ -660,6 +697,19 @@ cache_size = 50
     }
 
     #[test]
+    fn test_nvos_config_defaults() {
+        let defaults = NvosCollectorConfig::default();
+        assert_eq!(defaults.poll_interval, Duration::from_secs(60));
+        assert_eq!(defaults.gnmi_port, 9339);
+        assert!(defaults.self_signed_tls);
+        assert_eq!(defaults.request_timeout, Duration::from_secs(30));
+        assert!(defaults.nvue_paths.system_health_enabled);
+        assert!(defaults.nvue_paths.cluster_apps_enabled);
+        assert!(defaults.nvue_paths.sdn_partitions_enabled);
+        assert!(defaults.nvue_paths.interfaces_enabled);
+    }
+
+    #[test]
     fn test_nvos_config_parsing() {
         let toml_content = r#"
 [endpoint_sources.carbide_api]
@@ -670,7 +720,8 @@ enabled = false
 
 [collectors.nvos]
 poll_interval = "2m"
-gnmi_port = 9339
+gnmi_port = 8080
+self_signed_tls = false
 request_timeout = "45s"
 "#;
 
@@ -684,8 +735,13 @@ request_timeout = "45s"
 
         if let Configurable::Enabled(ref nvos) = config.collectors.nvos {
             assert_eq!(nvos.poll_interval, Duration::from_secs(120));
-            assert_eq!(nvos.gnmi_port, 9339);
+            assert_eq!(nvos.gnmi_port, 8080);
+            assert!(!nvos.self_signed_tls);
             assert_eq!(nvos.request_timeout, Duration::from_secs(45));
+            assert!(nvos.nvue_paths.system_health_enabled);
+            assert!(nvos.nvue_paths.cluster_apps_enabled);
+            assert!(nvos.nvue_paths.sdn_partitions_enabled);
+            assert!(nvos.nvue_paths.interfaces_enabled);
         } else {
             panic!("nvos config should be enabled");
         }
@@ -717,5 +773,40 @@ enabled = false
             .expect("failed to parse");
 
         assert!(!config.collectors.nvos.is_enabled());
+    }
+
+    #[test]
+    fn test_nvos_config_selective_endpoints() {
+        let toml_content = r#"
+[endpoint_sources.carbide_api]
+enabled = false
+
+[sinks.health_override]
+enabled = false
+
+[collectors.nvos]
+poll_interval = "1m"
+
+[collectors.nvos.nvue_paths]
+system_health_enabled = true
+cluster_apps_enabled = false
+sdn_partitions_enabled = true
+interfaces_enabled = false
+"#;
+
+        let config: Config = Figment::new()
+            .merge(Serialized::defaults(Config::default()))
+            .merge(Toml::string(toml_content))
+            .extract()
+            .expect("failed to parse nvos config with selective endpoints");
+
+        if let Configurable::Enabled(ref nvos) = config.collectors.nvos {
+            assert!(nvos.nvue_paths.system_health_enabled);
+            assert!(!nvos.nvue_paths.cluster_apps_enabled);
+            assert!(nvos.nvue_paths.sdn_partitions_enabled);
+            assert!(!nvos.nvue_paths.interfaces_enabled);
+        } else {
+            panic!("nvos config should be enabled");
+        }
     }
 }

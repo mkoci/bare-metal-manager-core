@@ -20,25 +20,28 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // gNMI proto definitions from OpenConfig (gnmi_service v0.10.0)
     // upstream: https://github.com/openconfig/gnmi/tree/master/proto
-    let proto_dir = "src/collectors/proto";
+    let gnmi_proto_dir = "src/collectors/nvos/proto";
 
     tonic_prost_build::configure()
         .build_client(true)
         .build_server(false)
         .out_dir(&out_dir)
         .compile_protos(
-            &[format!("{proto_dir}/gnmi_ext.proto")],
-            &[proto_dir.to_string()],
+            &[format!("{gnmi_proto_dir}/gnmi_ext.proto")],
+            &[gnmi_proto_dir.to_string()],
         )?;
 
     tonic_prost_build::configure()
         .build_client(true)
         .build_server(false)
-        .extern_path(".gnmi_ext", "crate::collectors::gnmi::proto::gnmi_ext")
+        .extern_path(
+            ".gnmi_ext",
+            "crate::collectors::nvos::gnmi::proto::gnmi_ext",
+        )
         .out_dir(&out_dir)
         .compile_protos(
-            &[format!("{proto_dir}/gnmi.proto")],
-            &[proto_dir.to_string()],
+            &[format!("{gnmi_proto_dir}/gnmi.proto")],
+            &[gnmi_proto_dir.to_string()],
         )?;
 
     Ok(())
