@@ -16,4 +16,6 @@
  */
 
 pub(crate) mod gnmi;
+pub(crate) mod gnmi_client;
 pub(crate) mod nvue_client;
+pub(crate) mod tls;

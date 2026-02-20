@@ -331,8 +331,10 @@ pub struct NvosCollectorConfig {
     /// gNMI server port on the switch.
     pub gnmi_port: u16,
 
-    /// use the default NVOS self-signed TLS certificate.
-    pub self_signed_tls: bool,
+    /// ! Creation of TLS certs on switches is not yet implemented. This deafults to  ignore the CA chain on the switch.
+    /// ! Dangerously skip TLS certificate verification for both NVUE REST and gNMI
+    /// ! traffic is encrypted for passing credentials.
+    /// pub self_signed_tls: bool,
 
     /// Timeout for individual REST/gNMI requests.
     #[serde(with = "humantime_serde")]

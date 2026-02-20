@@ -92,6 +92,8 @@ scrape_interval = "1m"
 [collectors.nvos]
 poll_interval = "1m"
 gnmi_port = 9339
+# dangerously skip TLS cert verification for NVUE REST and gNMI and use the default self-signed NVOS certificate
+self_signed_tls = true
 request_timeout = "30s"
 
 # NVUE REST paths to poll (all enabled by default)

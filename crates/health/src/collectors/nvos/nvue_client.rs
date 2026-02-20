@@ -56,14 +56,12 @@ impl NvueClient {
             .connect_timeout(Duration::from_secs(10));
 
         if self_signed_tls {
-            // currently only the default NVOS self-signed cert is supported 
-            // future support for custom CA-signed certs is in progress
+            // ! dangerously accept the self-signed certificate.
             builder = builder.danger_accept_invalid_certs(true);
         }
 
-        let client = builder.build().map_err(|e| HealthError::HttpError {
-            url: base_url.clone(),
-            message: format!("failed to create HTTP client: {e}"),
+        let client = builder.build().map_err(|e| {
+            HealthError::HttpsError(format!("{base_url}: failed to create HTTP client: {e}"))
         })?;
 
         Ok(Self {
@@ -150,26 +148,27 @@ impl NvueClient {
             .header("Accept", "application/json")
             .header("Content-Type", "application/json");
 
-        let response = request.send().await.map_err(|e| HealthError::HttpError {
-            url: url.to_string(),
-            message: format!("request failed for switch {}: {e}", self.switch_id),
+        let response = request.send().await.map_err(|e| {
+            HealthError::HttpsError(format!(
+                "{url}: request failed for switch {}: {e}",
+                self.switch_id
+            ))
         })?;
 
         if !response.status().is_success() {
             let status = response.status();
             let body = response.text().await.unwrap_or_default();
-            return Err(HealthError::HttpError {
-                url: url.to_string(),
-                message: format!("HTTP {status} for switch {}: {body}", self.switch_id),
-            });
+            return Err(HealthError::HttpsError(format!(
+                "{url}: HTTP {status} for switch {}: {body}",
+                self.switch_id
+            )));
         }
 
-        response.json().await.map_err(|e| HealthError::HttpError {
-            url: url.to_string(),
-            message: format!(
-                "failed to parse response for switch {}: {e}",
+        response.json().await.map_err(|e| {
+            HealthError::HttpsError(format!(
+                "{url}: failed to parse response for switch {}: {e}",
                 self.switch_id
-            ),
+            ))
         })
     }
 }
