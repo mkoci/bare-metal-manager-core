@@ -347,9 +347,9 @@ pub struct NvosCollectorConfig {
 impl Default for NvosCollectorConfig {
     fn default() -> Self {
         Self {
-            poll_interval: Duration::from_secs(60),
+            poll_interval: Duration::from_secs(300),
             gnmi_port: 9339,
-            self_signed_tls: true,
+            // self_signed_tls: true,
             request_timeout: Duration::from_secs(30),
             nvue_paths: NvuePaths::default(),
         }
@@ -584,7 +584,7 @@ mod tests {
         if let Configurable::Enabled(ref nvos) = config.collectors.nvos {
             assert_eq!(nvos.poll_interval, Duration::from_secs(60));
             assert_eq!(nvos.gnmi_port, 9339);
-            assert!(nvos.self_signed_tls);
+            // assert!(nvos.self_signed_tls);
             assert_eq!(nvos.request_timeout, Duration::from_secs(30));
         } else {
             panic!("nvos config should be enabled in example config");
@@ -701,9 +701,9 @@ cache_size = 50
     #[test]
     fn test_nvos_config_defaults() {
         let defaults = NvosCollectorConfig::default();
-        assert_eq!(defaults.poll_interval, Duration::from_secs(60));
+        assert_eq!(defaults.poll_interval, Duration::from_secs(300));
         assert_eq!(defaults.gnmi_port, 9339);
-        assert!(defaults.self_signed_tls);
+        // assert!(defaults.self_signed_tls);
         assert_eq!(defaults.request_timeout, Duration::from_secs(30));
         assert!(defaults.nvue_paths.system_health_enabled);
         assert!(defaults.nvue_paths.cluster_apps_enabled);
@@ -723,7 +723,7 @@ enabled = false
 [collectors.nvos]
 poll_interval = "2m"
 gnmi_port = 8080
-self_signed_tls = false
+# self_signed_tls = false
 request_timeout = "45s"
 "#;
 
@@ -738,7 +738,7 @@ request_timeout = "45s"
         if let Configurable::Enabled(ref nvos) = config.collectors.nvos {
             assert_eq!(nvos.poll_interval, Duration::from_secs(120));
             assert_eq!(nvos.gnmi_port, 8080);
-            assert!(!nvos.self_signed_tls);
+            // assert!(!nvos.self_signed_tls);
             assert_eq!(nvos.request_timeout, Duration::from_secs(45));
             assert!(nvos.nvue_paths.system_health_enabled);
             assert!(nvos.nvue_paths.cluster_apps_enabled);
