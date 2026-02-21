@@ -212,6 +212,21 @@ impl Collector {
         })
     }
 
+    /// Boilerplate task for managing the Collector for gNMI subscriptions
+    pub fn spawn_task<F, Fut>(task_fn: F) -> Self
+    where
+        F: FnOnce(CancellationToken) -> Fut + Send + 'static,
+        Fut: std::future::Future<Output = ()> + Send + 'static,
+    {
+        let cancel_token = CancellationToken::new();
+        let cancel_clone = cancel_token.clone();
+        let handle = tokio::spawn(task_fn(cancel_clone));
+        Self {
+            handle,
+            cancel_token,
+        }
+    }
+
     pub async fn stop(self) {
         self.cancel_token.cancel();
         let _ = self.handle.await;
