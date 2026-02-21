@@ -34,7 +34,6 @@ pub fn nvos_subscribe_paths() -> Vec<Path> {
         build_path(&[("components", None), ("component", None)]),
         build_path(&[("interfaces", None), ("interface", None)]),
         build_path(&[("platform-general", None), ("leak-sensors", None)]),
-        build_path(&[("system", None), ("health", None)]),
     ]
 }
 
@@ -183,6 +182,60 @@ impl GnmiClient {
         );
 
         Ok(notifications)
+    }
+
+    /// open a gNMI SAMPLE streaming subscription
+    pub async fn subscribe_sample(
+        &self,
+        paths: Vec<Path>,
+        sample_interval_nanos: u64,
+    ) -> Result<tonic::Streaming<proto::SubscribeResponse>, HealthError> {
+        let mut client = self.connect().await?;
+
+        let subscription_list = SubscriptionList {
+            prefix: Some(Path {
+                target: "nvos".to_string(),
+                ..Default::default()
+            }),
+            subscription: paths
+                .into_iter()
+                .map(|path| Subscription {
+                    path: Some(path),
+                    mode: SubscriptionMode::Sample.into(),
+                    sample_interval: sample_interval_nanos,
+                    ..Default::default()
+                })
+                .collect(),
+            mode: SubscriptionListMode::Stream.into(),
+            encoding: Encoding::Json.into(),
+            ..Default::default()
+        };
+
+        let subscribe_request = SubscribeRequest {
+            request: Some(proto::subscribe_request::Request::Subscribe(
+                subscription_list,
+            )),
+            extension: vec![],
+        };
+
+        let stream = tokio_stream::once(subscribe_request);
+        let mut request = Request::new(stream);
+        add_auth_metadata(&mut request, &self.username, &self.password);
+
+        let response = client.subscribe(request).await.map_err(|e| {
+            HealthError::GnmiError(format!(
+                "switch {}: subscribe_sample RPC failed: {e}",
+                self.switch_id
+            ))
+        })?;
+
+        tracing::debug!(
+            switch_id = %self.switch_id,
+            sample_interval_nanos,
+            "gNMI SAMPLE stream opened"
+        );
+
+        Ok(response.into_inner())
     }
 }
 
@@ -529,11 +582,10 @@ mod tests {
     #[test]
     fn test_nvos_subscribe_paths() {
         let paths = nvos_subscribe_paths();
-        assert_eq!(paths.len(), 4);
+        assert_eq!(paths.len(), 3);
 
         assert_eq!(path_to_string(&paths[0]), "/components/component");
         assert_eq!(path_to_string(&paths[1]), "/interfaces/interface");
         assert_eq!(path_to_string(&paths[2]), "/platform-general/leak-sensors");
-        assert_eq!(path_to_string(&paths[3]), "/system/health");
     }
 }
