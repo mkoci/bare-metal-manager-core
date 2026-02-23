@@ -57,6 +57,8 @@ pub(super) fn stop_removed_bmc_collectors(
             remaining_collectors = ctx.collectors.len(CollectorKind::Logs),
             remaining_firmware_collectors = ctx.collectors.len(CollectorKind::Firmware),
             remaining_nmxt_collectors = ctx.collectors.len(CollectorKind::Nmxt),
+            remaining_nvue_rest_collectors = ctx.collectors.len(CollectorKind::NvueRest),
+            remaining_nvue_gnmi_collectors = ctx.collectors.len(CollectorKind::NvueGnmi),
             "Cleaned up removed endpoints"
         );
     }

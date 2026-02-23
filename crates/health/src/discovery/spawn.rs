@@ -22,8 +22,8 @@ use super::context::{BmcClient, CollectorKind, DiscoveryLoopContext};
 use crate::HealthError;
 use crate::collectors::{
     Collector, FirmwareCollector, FirmwareCollectorConfig, LogsCollector, LogsCollectorConfig,
-    NmxtCollector, NmxtCollectorConfig, SensorCollector, SensorCollectorConfig,
-    create_log_file_writer,
+    NmxtCollector, NmxtCollectorConfig, NvueRestCollector, NvueRestCollectorConfig,
+    SensorCollector, SensorCollectorConfig, create_log_file_writer, spawn_gnmi_collector,
 };
 use crate::config::Configurable;
 use crate::endpoint::{BmcEndpoint, EndpointMetadata};
@@ -192,7 +192,7 @@ pub(super) async fn spawn_collectors_for_endpoint(
             metrics_prefix,
         )?);
         match Collector::start::<NmxtCollector>(
-            endpoint_arc,
+            endpoint_arc.clone(),
             ctx.limiter.clone(),
             nmxt_cfg.scrape_interval,
             NmxtCollectorConfig {
@@ -218,6 +218,74 @@ pub(super) async fn spawn_collectors_for_endpoint(
                     ?error,
                     endpoint_key = %key,
                     "Could not start NMX-T collector for switch"
+                );
+            }
+        }
+    }
+
+    if let Configurable::Enabled(nvue_cfg) = &ctx.nvue_config
+        && !ctx.collectors.contains(CollectorKind::NvueRest, &key)
+        && matches!(endpoint.metadata, Some(EndpointMetadata::Switch(_)))
+    {
+        let collector_registry = Arc::new(ctx.metrics_manager.create_collector_registry(
+            format!("nvue_rest_collector_{}", endpoint.addr.hash_key()),
+            metrics_prefix,
+        )?);
+        match Collector::start::<NvueRestCollector>(
+            endpoint_arc.clone(),
+            ctx.limiter.clone(),
+            nvue_cfg.poll_interval,
+            NvueRestCollectorConfig {
+                nvue_config: nvue_cfg.clone(),
+                collector_registry: collector_registry.clone(),
+                data_sink: data_sink.clone(),
+            },
+            collector_registry,
+            ctx.client.clone(),
+            &ctx.config,
+        ) {
+            Ok(handle) => {
+                ctx.collectors
+                    .insert(CollectorKind::NvueRest, key.clone(), handle);
+                tracing::info!(
+                    endpoint_key = %key,
+                    total_nvue_rest_collectors = ctx.collectors.len(CollectorKind::NvueRest),
+                    "Started NVUE REST collection for switch endpoint"
+                );
+            }
+            Err(error) => {
+                tracing::error!(
+                    ?error,
+                    endpoint_key = %key,
+                    "Could not start NVUE REST collector for switch"
+                );
+            }
+        }
+    }
+
+    if let Configurable::Enabled(nvue_cfg) = &ctx.nvue_config
+        && !ctx.collectors.contains(CollectorKind::NvueGnmi, &key)
+        && matches!(endpoint.metadata, Some(EndpointMetadata::Switch(_)))
+    {
+        let collector_registry = Arc::new(ctx.metrics_manager.create_collector_registry(
+            format!("nvue_gnmi_collector_{}", endpoint.addr.hash_key()),
+            metrics_prefix,
+        )?);
+        match spawn_gnmi_collector(endpoint, nvue_cfg, collector_registry, data_sink.clone()) {
+            Ok(handle) => {
+                ctx.collectors
+                    .insert(CollectorKind::NvueGnmi, key.clone(), handle);
+                tracing::info!(
+                    endpoint_key = %key,
+                    total_nvue_gnmi_collectors = ctx.collectors.len(CollectorKind::NvueGnmi),
+                    "Started NVUE gNMI collection for switch endpoint"
+                );
+            }
+            Err(error) => {
+                tracing::error!(
+                    ?error,
+                    endpoint_key = %key,
+                    "Could not start NVUE gNMI collector for switch"
                 );
             }
         }
@@ -320,5 +388,7 @@ mod tests {
         assert_eq!(ctx.collectors.len(CollectorKind::Logs), 0);
         assert_eq!(ctx.collectors.len(CollectorKind::Firmware), 0);
         assert_eq!(ctx.collectors.len(CollectorKind::Nmxt), 0);
+        assert_eq!(ctx.collectors.len(CollectorKind::NvueRest), 0);
+        assert_eq!(ctx.collectors.len(CollectorKind::NvueGnmi), 0);
     }
 }
