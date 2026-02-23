@@ -20,16 +20,16 @@ use std::time::Duration;
 use tonic::Request;
 use tonic::transport::{Channel, Endpoint};
 
-use super::gnmi::proto::g_nmi_client::GNmiClient as TonicGnmiClient;
-use super::gnmi::proto::subscription_list::Mode as SubscriptionListMode;
-use super::gnmi::proto::{
+use super::proto::g_nmi_client::GNmiClient as TonicGnmiClient;
+use super::proto::subscription_list::Mode as SubscriptionListMode;
+use super::proto::{
     self, Encoding, Path, PathElem, SubscribeRequest, Subscription, SubscriptionList,
     SubscriptionMode,
 };
 use crate::HealthError;
 
 /// The currently targeted gNMI subscription paths for critical health metrics.
-pub fn nvos_subscribe_paths() -> Vec<Path> {
+pub fn nvue_subscribe_paths() -> Vec<Path> {
     vec![
         build_path(&[("components", None), ("component", None)]),
         build_path(&[("interfaces", None), ("interface", None)]),
@@ -76,7 +76,7 @@ impl GnmiClient {
             .connect_timeout(self.request_timeout)
             .timeout(self.request_timeout);
 
-        let tls_config = super::tls::self_signed_tls_config();
+        let tls_config = crate::collectors::nvue::tls::self_signed_tls_config();
         let connector = hyper_rustls::HttpsConnectorBuilder::new()
             .with_tls_config(tls_config)
             .https_only()
@@ -104,6 +104,7 @@ impl GnmiClient {
 
     /// Perform a gNMI ONCE subscribe for the given paths, collecting all
     /// notifications until the server sends `sync_response = true`.
+    #[allow(dead_code)]
     pub async fn subscribe_once(
         &self,
         paths: Vec<Path>,
@@ -187,7 +188,7 @@ impl GnmiClient {
     /// open a gNMI SAMPLE streaming subscription
     pub async fn subscribe_sample(
         &self,
-        paths: Vec<Path>,
+        paths: &[Path],
         sample_interval_nanos: u64,
     ) -> Result<tonic::Streaming<proto::SubscribeResponse>, HealthError> {
         let mut client = self.connect().await?;
@@ -198,9 +199,9 @@ impl GnmiClient {
                 ..Default::default()
             }),
             subscription: paths
-                .into_iter()
+                .iter()
                 .map(|path| Subscription {
-                    path: Some(path),
+                    path: Some(path.clone()),
                     mode: SubscriptionMode::Sample.into(),
                     sample_interval: sample_interval_nanos,
                     ..Default::default()
@@ -281,6 +282,7 @@ pub fn build_path(elements: &[(&str, Option<(&str, &str)>)]) -> Path {
 }
 
 /// Format a `Path` as a human-readable slash-separated string with keys.
+#[allow(dead_code)]
 pub fn path_to_string(path: &Path) -> String {
     if path.elem.is_empty() {
         return "/".to_string();
@@ -297,6 +299,7 @@ pub fn path_to_string(path: &Path) -> String {
 }
 
 /// Extract a key value from a specific path element.
+#[allow(dead_code)]
 pub fn extract_key_from_path(path: &Path, elem_name: &str, key_name: &str) -> Option<String> {
     path.elem
         .iter()
@@ -348,6 +351,7 @@ pub fn typed_value_to_f64(val: &proto::TypedValue) -> Option<f64> {
 }
 
 /// Extract an unsigned integer from a `TypedValue`.
+#[allow(dead_code)]
 pub fn typed_value_to_u64(val: &proto::TypedValue) -> Option<u64> {
     use proto::typed_value::Value;
     match &val.value {
@@ -580,8 +584,8 @@ mod tests {
     }
 
     #[test]
-    fn test_nvos_subscribe_paths() {
-        let paths = nvos_subscribe_paths();
+    fn test_nvue_subscribe_paths() {
+        let paths = nvue_subscribe_paths();
         assert_eq!(paths.len(), 3);
 
         assert_eq!(path_to_string(&paths[0]), "/components/component");

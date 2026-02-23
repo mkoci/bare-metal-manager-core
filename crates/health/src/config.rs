@@ -202,8 +202,8 @@ pub struct CollectorsConfig {
     /// Switch NMX-T collector configuration (if present, nmxt collector is enabled)
     pub nmxt: Configurable<NmxtCollectorConfig>,
 
-    /// NVOS collector configuration for direct NVUE REST + gNMI polling of NVLink switches
-    pub nvos: Configurable<NvosCollectorConfig>,
+    /// NVUE collector configuration for direct NVUE REST + gNMI polling of NVLink switches
+    pub nvue: Configurable<NvueCollectorConfig>,
 }
 
 impl Default for CollectorsConfig {
@@ -213,7 +213,7 @@ impl Default for CollectorsConfig {
             firmware: Configurable::Disabled,
             logs: Configurable::Disabled,
             nmxt: Configurable::Disabled,
-            nvos: Configurable::Disabled,
+            nvue: Configurable::Disabled,
         }
     }
 }
@@ -323,7 +323,7 @@ impl Default for NmxtCollectorConfig {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
-pub struct NvosCollectorConfig {
+pub struct NvueCollectorConfig {
     /// Interval between NVUE REST + gNMI poll iterations.
     #[serde(with = "humantime_serde")]
     pub poll_interval: Duration,
@@ -344,7 +344,7 @@ pub struct NvosCollectorConfig {
     pub nvue_paths: NvuePaths,
 }
 
-impl Default for NvosCollectorConfig {
+impl Default for NvueCollectorConfig {
     fn default() -> Self {
         Self {
             poll_interval: Duration::from_secs(300),
@@ -557,7 +557,7 @@ mod tests {
         assert!(config.collectors.sensors.is_enabled());
         assert!(config.collectors.firmware.is_enabled());
         assert!(config.collectors.logs.is_enabled());
-        assert!(config.collectors.nvos.is_enabled());
+        assert!(config.collectors.nvue.is_enabled());
         assert!(!config.sinks.tracing.is_enabled());
         assert!(config.sinks.prometheus.is_enabled());
 
@@ -581,13 +581,13 @@ mod tests {
 
         assert_eq!(config.cache_size, 100);
 
-        if let Configurable::Enabled(ref nvos) = config.collectors.nvos {
-            assert_eq!(nvos.poll_interval, Duration::from_secs(60));
-            assert_eq!(nvos.gnmi_port, 9339);
-            // assert!(nvos.self_signed_tls);
-            assert_eq!(nvos.request_timeout, Duration::from_secs(30));
+        if let Configurable::Enabled(ref nvue) = config.collectors.nvue {
+            assert_eq!(nvue.poll_interval, Duration::from_secs(60));
+            assert_eq!(nvue.gnmi_port, 9339);
+            // assert!(nvue.self_signed_tls);
+            assert_eq!(nvue.request_timeout, Duration::from_secs(30));
         } else {
-            panic!("nvos config should be enabled in example config");
+            panic!("nvue config should be enabled in example config");
         }
     }
 
@@ -695,12 +695,12 @@ cache_size = 50
         assert_eq!(config.cache_size, 100);
         assert_eq!(config.metrics.endpoint, "0.0.0.0:9009");
         assert!(config.rate_limit.is_enabled());
-        assert!(!config.collectors.nvos.is_enabled());
+        assert!(!config.collectors.nvue.is_enabled());
     }
 
     #[test]
-    fn test_nvos_config_defaults() {
-        let defaults = NvosCollectorConfig::default();
+    fn test_nvue_config_defaults() {
+        let defaults = NvueCollectorConfig::default();
         assert_eq!(defaults.poll_interval, Duration::from_secs(300));
         assert_eq!(defaults.gnmi_port, 9339);
         // assert!(defaults.self_signed_tls);
@@ -712,7 +712,7 @@ cache_size = 50
     }
 
     #[test]
-    fn test_nvos_config_parsing() {
+    fn test_nvue_config_parsing() {
         let toml_content = r#"
 [endpoint_sources.carbide_api]
 enabled = false
@@ -720,7 +720,7 @@ enabled = false
 [sinks.health_override]
 enabled = false
 
-[collectors.nvos]
+[collectors.nvue]
 poll_interval = "2m"
 gnmi_port = 8080
 # self_signed_tls = false
@@ -731,32 +731,32 @@ request_timeout = "45s"
             .merge(Serialized::defaults(Config::default()))
             .merge(Toml::string(toml_content))
             .extract()
-            .expect("failed to parse nvos config");
+            .expect("failed to parse nvue config");
 
-        assert!(config.collectors.nvos.is_enabled());
+        assert!(config.collectors.nvue.is_enabled());
 
-        if let Configurable::Enabled(ref nvos) = config.collectors.nvos {
-            assert_eq!(nvos.poll_interval, Duration::from_secs(120));
-            assert_eq!(nvos.gnmi_port, 8080);
-            // assert!(!nvos.self_signed_tls);
-            assert_eq!(nvos.request_timeout, Duration::from_secs(45));
-            assert!(nvos.nvue_paths.system_health_enabled);
-            assert!(nvos.nvue_paths.cluster_apps_enabled);
-            assert!(nvos.nvue_paths.sdn_partitions_enabled);
-            assert!(nvos.nvue_paths.interfaces_enabled);
+        if let Configurable::Enabled(ref nvue) = config.collectors.nvue {
+            assert_eq!(nvue.poll_interval, Duration::from_secs(120));
+            assert_eq!(nvue.gnmi_port, 8080);
+            // assert!(!nvue.self_signed_tls);
+            assert_eq!(nvue.request_timeout, Duration::from_secs(45));
+            assert!(nvue.nvue_paths.system_health_enabled);
+            assert!(nvue.nvue_paths.cluster_apps_enabled);
+            assert!(nvue.nvue_paths.sdn_partitions_enabled);
+            assert!(nvue.nvue_paths.interfaces_enabled);
         } else {
-            panic!("nvos config should be enabled");
+            panic!("nvue config should be enabled");
         }
     }
 
     #[test]
-    fn test_nvos_config_disabled_by_default() {
+    fn test_nvue_config_disabled_by_default() {
         let config = Config::default();
-        assert!(!config.collectors.nvos.is_enabled());
+        assert!(!config.collectors.nvue.is_enabled());
     }
 
     #[test]
-    fn test_nvos_config_explicit_disable() {
+    fn test_nvue_config_explicit_disable() {
         let toml_content = r#"
 [endpoint_sources.carbide_api]
 enabled = false
@@ -764,7 +764,7 @@ enabled = false
 [sinks.health_override]
 enabled = false
 
-[collectors.nvos]
+[collectors.nvue]
 enabled = false
 "#;
 
@@ -774,11 +774,11 @@ enabled = false
             .extract()
             .expect("failed to parse");
 
-        assert!(!config.collectors.nvos.is_enabled());
+        assert!(!config.collectors.nvue.is_enabled());
     }
 
     #[test]
-    fn test_nvos_config_selective_endpoints() {
+    fn test_nvue_config_selective_endpoints() {
         let toml_content = r#"
 [endpoint_sources.carbide_api]
 enabled = false
@@ -786,10 +786,10 @@ enabled = false
 [sinks.health_override]
 enabled = false
 
-[collectors.nvos]
+[collectors.nvue]
 poll_interval = "1m"
 
-[collectors.nvos.nvue_paths]
+[collectors.nvue.nvue_paths]
 system_health_enabled = true
 cluster_apps_enabled = false
 sdn_partitions_enabled = true
@@ -800,15 +800,15 @@ interfaces_enabled = false
             .merge(Serialized::defaults(Config::default()))
             .merge(Toml::string(toml_content))
             .extract()
-            .expect("failed to parse nvos config with selective endpoints");
+            .expect("failed to parse nvue config with selective endpoints");
 
-        if let Configurable::Enabled(ref nvos) = config.collectors.nvos {
-            assert!(nvos.nvue_paths.system_health_enabled);
-            assert!(!nvos.nvue_paths.cluster_apps_enabled);
-            assert!(nvos.nvue_paths.sdn_partitions_enabled);
-            assert!(!nvos.nvue_paths.interfaces_enabled);
+        if let Configurable::Enabled(ref nvue) = config.collectors.nvue {
+            assert!(nvue.nvue_paths.system_health_enabled);
+            assert!(!nvue.nvue_paths.cluster_apps_enabled);
+            assert!(nvue.nvue_paths.sdn_partitions_enabled);
+            assert!(!nvue.nvue_paths.interfaces_enabled);
         } else {
-            panic!("nvos config should be enabled");
+            panic!("nvue config should be enabled");
         }
     }
 }

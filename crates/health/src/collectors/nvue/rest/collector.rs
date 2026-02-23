@@ -21,15 +21,15 @@ use std::sync::Arc;
 use nv_redfish_core::Bmc;
 use prometheus::{GaugeVec, Opts};
 
+use super::client::NvueClient;
 use crate::HealthError;
-use crate::collectors::nvos::nvue_client::NvueClient;
 use crate::collectors::{IterationResult, PeriodicCollector};
-use crate::config::NvosCollectorConfig;
+use crate::config::NvueCollectorConfig;
 use crate::endpoint::{BmcEndpoint, EndpointMetadata};
 use crate::metrics::CollectorRegistry;
 use crate::sink::{CollectorEvent, DataSink, EventContext, MetricSample};
 
-const COLLECTOR_NAME: &str = "nvos_rest";
+const COLLECTOR_NAME: &str = "nvue_rest";
 
 fn health_status_to_f64(status: Option<&str>) -> f64 {
     match status {
@@ -58,13 +58,13 @@ fn diagnostic_status_to_f64(status: &str) -> f64 {
     }
 }
 
-pub struct NvosRestCollectorConfig {
-    pub nvos_config: NvosCollectorConfig,
+pub struct NvueRestCollectorConfig {
+    pub nvue_config: NvueCollectorConfig,
     pub collector_registry: Arc<CollectorRegistry>,
     pub data_sink: Option<Arc<dyn DataSink>>,
 }
 
-pub struct NvosRestCollector {
+pub struct NvueRestCollector {
     client: NvueClient,
     switch_id: String,
     switch_ip: String,
@@ -78,8 +78,8 @@ pub struct NvosRestCollector {
     data_sink: Option<Arc<dyn DataSink>>,
 }
 
-impl<B: Bmc + 'static> PeriodicCollector<B> for NvosRestCollector {
-    type Config = NvosRestCollectorConfig;
+impl<B: Bmc + 'static> PeriodicCollector<B> for NvueRestCollector {
+    type Config = NvueRestCollectorConfig;
 
     fn new_runner(
         _bmc: Arc<B>,
@@ -94,16 +94,16 @@ impl<B: Bmc + 'static> PeriodicCollector<B> for NvosRestCollector {
         let switch_mac = endpoint.addr.mac.to_string();
         let event_context = EventContext::from_endpoint(endpoint.as_ref(), COLLECTOR_NAME);
 
-        let nvos_cfg = &config.nvos_config;
-        // self_signed_tls is always true -- see commented-out field in NvosCollectorConfig
+        let nvue_cfg = &config.nvue_config;
+        // self_signed_tls is always true -- see commented-out field in NvueCollectorConfig
         let client = NvueClient::new(
             switch_id.clone(),
             &switch_ip,
             Some(endpoint.credentials.username.clone()),
             Some(endpoint.credentials.password.clone()),
-            nvos_cfg.request_timeout,
+            nvue_cfg.request_timeout,
             true,
-            nvos_cfg.nvue_paths.clone(),
+            nvue_cfg.nvue_paths.clone(),
         )?;
 
         let registry = config.collector_registry.registry();
@@ -111,7 +111,7 @@ impl<B: Bmc + 'static> PeriodicCollector<B> for NvosRestCollector {
 
         let system_health_gauge = GaugeVec::new(
             Opts::new(
-                format!("{prefix}_nvos_system_health_state"),
+                format!("{prefix}_nvue_system_health_state"),
                 "NVOS system health: 0=unknown, 1=healthy, 2=degraded, 3=unhealthy",
             ),
             &["switch_id", "switch_ip", "switch_mac"],
@@ -120,7 +120,7 @@ impl<B: Bmc + 'static> PeriodicCollector<B> for NvosRestCollector {
 
         let cluster_app_gauge = GaugeVec::new(
             Opts::new(
-                format!("{prefix}_nvos_cluster_app_state"),
+                format!("{prefix}_nvue_cluster_app_state"),
                 "NVOS cluster app status: 0=unknown, 1=running, 2=stopped, 3=error",
             ),
             &["switch_id", "switch_ip", "switch_mac", "app_name"],
@@ -129,7 +129,7 @@ impl<B: Bmc + 'static> PeriodicCollector<B> for NvosRestCollector {
 
         let partition_health_gauge = GaugeVec::new(
             Opts::new(
-                format!("{prefix}_nvos_partition_health"),
+                format!("{prefix}_nvue_partition_health"),
                 "NVOS partition health: 0=unknown, 1=healthy, 2=degraded, 3=unhealthy",
             ),
             &[
@@ -144,7 +144,7 @@ impl<B: Bmc + 'static> PeriodicCollector<B> for NvosRestCollector {
 
         let partition_gpu_count_gauge = GaugeVec::new(
             Opts::new(
-                format!("{prefix}_nvos_partition_gpu_count"),
+                format!("{prefix}_nvue_partition_gpu_count"),
                 "GPU count per SDN partition",
             ),
             &[
@@ -159,7 +159,7 @@ impl<B: Bmc + 'static> PeriodicCollector<B> for NvosRestCollector {
 
         let link_diagnostic_gauge = GaugeVec::new(
             Opts::new(
-                format!("{prefix}_nvos_link_diagnostic_status"),
+                format!("{prefix}_nvue_link_diagnostic_status"),
                 "Link diagnostic status: 0=ok, 1=warning, 2=error",
             ),
             &[
@@ -204,7 +204,7 @@ impl<B: Bmc + 'static> PeriodicCollector<B> for NvosRestCollector {
             Err(e) => tracing::warn!(
                 error = ?e,
                 switch_id = %self.switch_id,
-                "nvos_rest: failed to collect system health"
+                "nvue_rest: failed to collect system health"
             ),
         }
 
@@ -234,7 +234,7 @@ impl<B: Bmc + 'static> PeriodicCollector<B> for NvosRestCollector {
             Err(e) => tracing::warn!(
                 error = ?e,
                 switch_id = %self.switch_id,
-                "nvos_rest: failed to collect cluster apps"
+                "nvue_rest: failed to collect cluster apps"
             ),
         }
 
@@ -249,7 +249,7 @@ impl<B: Bmc + 'static> PeriodicCollector<B> for NvosRestCollector {
                                 error = ?e,
                                 switch_id = %self.switch_id,
                                 partition_id = %part_id,
-                                "nvos_rest: failed to fetch partition detail, using summary"
+                                "nvue_rest: failed to fetch partition detail, using summary"
                             );
                             summary.clone()
                         }
@@ -301,7 +301,7 @@ impl<B: Bmc + 'static> PeriodicCollector<B> for NvosRestCollector {
             Err(e) => tracing::warn!(
                 error = ?e,
                 switch_id = %self.switch_id,
-                "nvos_rest: failed to collect SDN partitions"
+                "nvue_rest: failed to collect SDN partitions"
             ),
         }
 
@@ -334,7 +334,7 @@ impl<B: Bmc + 'static> PeriodicCollector<B> for NvosRestCollector {
             Err(e) => tracing::warn!(
                 error = ?e,
                 switch_id = %self.switch_id,
-                "nvos_rest: failed to collect link diagnostics"
+                "nvue_rest: failed to collect link diagnostics"
             ),
         }
 
@@ -343,7 +343,7 @@ impl<B: Bmc + 'static> PeriodicCollector<B> for NvosRestCollector {
         tracing::debug!(
             switch_id = %self.switch_id,
             entity_count,
-            "nvos_rest: collection iteration complete"
+            "nvue_rest: collection iteration complete"
         );
 
         Ok(IterationResult {
@@ -357,7 +357,7 @@ impl<B: Bmc + 'static> PeriodicCollector<B> for NvosRestCollector {
     }
 }
 
-impl NvosRestCollector {
+impl NvueRestCollector {
     fn emit_event(&self, event: CollectorEvent) {
         if let Some(data_sink) = &self.data_sink {
             data_sink.handle_event(&self.event_context, &event);

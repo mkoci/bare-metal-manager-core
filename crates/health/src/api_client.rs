@@ -36,7 +36,7 @@ use crate::endpoint::{
 pub struct ApiClientWrapper {
     client: ForgeApiClient,
     nmxt_enabled: bool,
-    nvos_enabled: bool,
+    nvue_enabled: bool,
 }
 
 impl ApiClientWrapper {
@@ -46,7 +46,7 @@ impl ApiClientWrapper {
         client_key: String,
         api_url: &Url,
         nmxt_enabled: bool,
-        nvos_enabled: bool,
+        nvue_enabled: bool,
     ) -> Self {
         let client_config = ForgeClientConfig::new(
             root_ca,
@@ -62,7 +62,7 @@ impl ApiClientWrapper {
         Self {
             client,
             nmxt_enabled,
-            nvos_enabled,
+            nvue_enabled,
         }
     }
 
@@ -102,8 +102,8 @@ impl ApiClientWrapper {
             }
         }
 
-        // fetch switch endpoints when the NMXT or NVOS collector is enabled
-        if self.nmxt_enabled || self.nvos_enabled {
+        // fetch switch endpoints when the NMXT or NVUE collector is enabled
+        if self.nmxt_enabled || self.nvue_enabled {
             let switch_request = rpc::forge::SwitchQuery {
                 name: None,
                 switch_id: None,

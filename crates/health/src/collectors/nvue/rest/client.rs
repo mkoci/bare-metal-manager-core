@@ -29,7 +29,7 @@ const NVUE_CLUSTER_APPS: &str = "/nvue_v1/cluster/apps";
 const NVUE_SDN_PARTITIONS: &str = "/nvue_v1/sdn/partition";
 const NVUE_INTERFACES: &str = "/nvue_v1/interface";
 
-/// Client for NVUE REST API on NVOS switches.
+/// Client for NVUE REST API on NVUE-managed switches.
 pub struct NvueClient {
     pub(crate) switch_id: String,
     base_url: String,

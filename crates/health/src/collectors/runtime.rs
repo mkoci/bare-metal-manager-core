@@ -25,6 +25,7 @@ use nv_redfish::bmc_http::reqwest::Client as ReqwestClient;
 use nv_redfish::bmc_http::{CacheSettings, HttpBmc};
 use nv_redfish::core::Bmc;
 use prometheus::{Counter, Gauge, Histogram, HistogramOpts, Opts};
+use rand::Rng;
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 
@@ -230,5 +231,61 @@ impl Collector {
     pub async fn stop(self) {
         self.cancel_token.cancel();
         let _ = self.handle.await;
+    }
+}
+
+// ---------------------------------------------------------------------------
+// ExponentialBackoff with jitter
+// ---------------------------------------------------------------------------
+
+pub(crate) struct ExponentialBackoff {
+    initial: Duration,
+    max: Duration,
+    current: Duration,
+}
+
+impl ExponentialBackoff {
+    pub(crate) fn new(initial: Duration, max: Duration) -> Self {
+        Self {
+            initial,
+            max,
+            current: initial,
+        }
+    }
+
+    pub(crate) fn next_delay(&mut self) -> Duration {
+        let base = self.current;
+        self.current = (self.current * 2).min(self.max);
+        let jitter_ms = rand::rng().random_range(0..base.as_millis().max(1) as u64);
+        base + Duration::from_millis(jitter_ms)
+    }
+
+    pub(crate) fn reset(&mut self) {
+        self.current = self.initial;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_exponential_backoff_doubling_with_jitter() {
+        let mut b = ExponentialBackoff::new(Duration::from_secs(2), Duration::from_secs(60));
+
+        for expected_base in [2, 4, 8, 16, 32, 60, 60] {
+            let delay = b.next_delay();
+            let base = Duration::from_secs(expected_base);
+            assert!(delay >= base, "delay {delay:?} < base {base:?}");
+            assert!(
+                delay < base * 2,
+                "delay {delay:?} >= 2x base, jitter too large"
+            );
+        }
+
+        b.reset();
+        let delay = b.next_delay();
+        assert!(delay >= Duration::from_secs(2));
+        assert!(delay < Duration::from_secs(4));
     }
 }

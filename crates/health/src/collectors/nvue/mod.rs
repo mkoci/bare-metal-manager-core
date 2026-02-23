@@ -15,11 +15,6 @@
  * limitations under the License.
  */
 
-#[allow(clippy::enum_variant_names)]
-pub mod proto {
-    #[allow(clippy::enum_variant_names)]
-    pub mod gnmi_ext {
-        tonic::include_proto!("gnmi_ext");
-    }
-    tonic::include_proto!("gnmi");
-}
+pub(crate) mod gnmi;
+pub(crate) mod rest;
+pub(crate) mod tls;

@@ -15,18 +15,15 @@
  * limitations under the License.
  */
 
-mod firmware;
-mod logs;
-mod nmxt;
-mod runtime;
-mod sensors;
+pub(crate) mod client;
+pub(crate) mod processor;
+pub(crate) mod subscriber;
 
-pub(crate) mod nvue;
-
-pub use firmware::{FirmwareCollector, FirmwareCollectorConfig};
-pub use logs::{LogFileWriter, LogsCollector, LogsCollectorConfig, create_log_file_writer};
-pub use nmxt::{NmxtCollector, NmxtCollectorConfig};
-pub use nvue::gnmi::subscriber::spawn_gnmi_collector;
-pub use nvue::rest::collector::{NvueRestCollector, NvueRestCollectorConfig};
-pub use runtime::{Collector, IterationResult, PeriodicCollector};
-pub use sensors::{SensorCollector, SensorCollectorConfig};
+#[allow(clippy::enum_variant_names)]
+pub mod proto {
+    #[allow(clippy::enum_variant_names)]
+    pub mod gnmi_ext {
+        tonic::include_proto!("gnmi_ext");
+    }
+    tonic::include_proto!("gnmi");
+}
