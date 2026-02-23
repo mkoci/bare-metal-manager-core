@@ -193,31 +193,7 @@ impl GnmiClient {
     ) -> Result<tonic::Streaming<proto::SubscribeResponse>, HealthError> {
         let mut client = self.connect().await?;
 
-        let subscription_list = SubscriptionList {
-            prefix: Some(Path {
-                target: "nvos".to_string(),
-                ..Default::default()
-            }),
-            subscription: paths
-                .iter()
-                .map(|path| Subscription {
-                    path: Some(path.clone()),
-                    mode: SubscriptionMode::Sample.into(),
-                    sample_interval: sample_interval_nanos,
-                    ..Default::default()
-                })
-                .collect(),
-            mode: SubscriptionListMode::Stream.into(),
-            encoding: Encoding::Json.into(),
-            ..Default::default()
-        };
-
-        let subscribe_request = SubscribeRequest {
-            request: Some(proto::subscribe_request::Request::Subscribe(
-                subscription_list,
-            )),
-            extension: vec![],
-        };
+        let subscribe_request = build_sample_subscribe_request(paths, sample_interval_nanos);
 
         let stream = tokio_stream::once(subscribe_request);
         let mut request = Request::new(stream);
@@ -237,6 +213,34 @@ impl GnmiClient {
         );
 
         Ok(response.into_inner())
+    }
+}
+
+fn build_sample_subscribe_request(paths: &[Path], sample_interval_nanos: u64) -> SubscribeRequest {
+    let subscription_list = SubscriptionList {
+        prefix: Some(Path {
+            target: "nvos".to_string(),
+            ..Default::default()
+        }),
+        subscription: paths
+            .iter()
+            .map(|path| Subscription {
+                path: Some(path.clone()),
+                mode: SubscriptionMode::Sample.into(),
+                sample_interval: sample_interval_nanos,
+                ..Default::default()
+            })
+            .collect(),
+        mode: SubscriptionListMode::Stream.into(),
+        encoding: Encoding::Json.into(),
+        ..Default::default()
+    };
+
+    SubscribeRequest {
+        request: Some(proto::subscribe_request::Request::Subscribe(
+            subscription_list,
+        )),
+        extension: vec![],
     }
 }
 
@@ -591,5 +595,46 @@ mod tests {
         assert_eq!(path_to_string(&paths[0]), "/components/component");
         assert_eq!(path_to_string(&paths[1]), "/interfaces/interface");
         assert_eq!(path_to_string(&paths[2]), "/platform-general/leak-sensors");
+    }
+
+    #[test]
+    fn test_build_sample_subscribe_request() {
+        let paths = nvue_subscribe_paths();
+        let interval_nanos = 300_000_000_000u64; // 5 minutes
+
+        let req = build_sample_subscribe_request(&paths, interval_nanos);
+
+        let sub_list = match req.request {
+            Some(proto::subscribe_request::Request::Subscribe(sl)) => sl,
+            _ => panic!("expected Subscribe variant"),
+        };
+
+        assert_eq!(
+            sub_list.mode,
+            i32::from(SubscriptionListMode::Stream),
+            "must use Stream mode for SAMPLE subscriptions"
+        );
+        assert_eq!(
+            sub_list.encoding,
+            i32::from(Encoding::Json),
+            "encoding must be JSON"
+        );
+
+        let prefix = sub_list.prefix.expect("prefix must be set");
+        assert_eq!(prefix.target, "nvos", "target must be nvos");
+
+        assert_eq!(sub_list.subscription.len(), 3);
+        for sub in &sub_list.subscription {
+            assert_eq!(
+                sub.mode,
+                i32::from(SubscriptionMode::Sample),
+                "each subscription must use Sample mode"
+            );
+            assert_eq!(
+                sub.sample_interval, interval_nanos,
+                "sample_interval must match the requested interval"
+            );
+            assert!(sub.path.is_some(), "each subscription must have a path");
+        }
     }
 }

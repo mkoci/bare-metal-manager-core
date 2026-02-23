@@ -267,7 +267,31 @@ impl ExponentialBackoff {
 
 #[cfg(test)]
 mod tests {
+    use tokio::sync::Notify;
+
     use super::*;
+
+    #[tokio::test]
+    async fn test_spawn_task_runs_and_cancel_stops() {
+        let started = Arc::new(Notify::new());
+        let started_clone = started.clone();
+
+        let collector = Collector::spawn_task(move |cancel_token| async move {
+            started_clone.notify_one();
+            cancel_token.cancelled().await;
+        });
+
+        started.notified().await;
+
+        collector.stop().await;
+    }
+
+    #[tokio::test]
+    async fn test_spawn_task_completes_naturally() {
+        let collector = Collector::spawn_task(move |_cancel_token| async move {});
+
+        collector.stop().await;
+    }
 
     #[test]
     fn test_exponential_backoff_doubling_with_jitter() {
