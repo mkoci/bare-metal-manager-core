@@ -22,7 +22,7 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 
 use crate::HealthError;
-use crate::config::NvuePaths;
+use crate::config::NvueRestPaths;
 
 const NVUE_SYSTEM_HEALTH: &str = "/nvue_v1/system/health";
 const NVUE_CLUSTER_APPS: &str = "/nvue_v1/cluster/apps";
@@ -30,16 +30,16 @@ const NVUE_SDN_PARTITIONS: &str = "/nvue_v1/sdn/partition";
 const NVUE_INTERFACES: &str = "/nvue_v1/interface";
 
 /// Client for NVUE REST API on NVUE-managed switches.
-pub struct NvueClient {
+pub struct RestClient {
     pub(crate) switch_id: String,
     base_url: String,
     username: Option<String>,
     password: Option<String>,
-    nvue_paths: NvuePaths,
+    paths: NvueRestPaths,
     client: Client,
 }
 
-impl NvueClient {
+impl RestClient {
     pub fn new(
         switch_id: String,
         host: &str,
@@ -47,7 +47,7 @@ impl NvueClient {
         password: Option<String>,
         request_timeout: Duration,
         self_signed_tls: bool,
-        nvue_paths: NvuePaths,
+        paths: NvueRestPaths,
     ) -> Result<Self, HealthError> {
         let base_url = format!("https://{host}");
 
@@ -69,13 +69,13 @@ impl NvueClient {
             base_url,
             username,
             password,
-            nvue_paths,
+            paths,
             client,
         })
     }
 
     pub async fn get_system_health(&self) -> Result<Option<SystemHealthResponse>, HealthError> {
-        if !self.nvue_paths.system_health_enabled {
+        if !self.paths.system_health_enabled {
             return Ok(None);
         }
         let url = format!("{}{NVUE_SYSTEM_HEALTH}", self.base_url);
@@ -83,7 +83,7 @@ impl NvueClient {
     }
 
     pub async fn get_cluster_apps(&self) -> Result<Option<ClusterAppsResponse>, HealthError> {
-        if !self.nvue_paths.cluster_apps_enabled {
+        if !self.paths.cluster_apps_enabled {
             return Ok(None);
         }
         let url = format!("{}{NVUE_CLUSTER_APPS}", self.base_url);
@@ -91,7 +91,7 @@ impl NvueClient {
     }
 
     pub async fn get_sdn_partitions(&self) -> Result<Option<SdnPartitionsResponse>, HealthError> {
-        if !self.nvue_paths.sdn_partitions_enabled {
+        if !self.paths.sdn_partitions_enabled {
             return Ok(None);
         }
         let url = format!("{}{NVUE_SDN_PARTITIONS}", self.base_url);
@@ -102,7 +102,7 @@ impl NvueClient {
         &self,
         partition_id: &str,
     ) -> Result<Option<SdnPartition>, HealthError> {
-        if !self.nvue_paths.sdn_partitions_enabled {
+        if !self.paths.sdn_partitions_enabled {
             return Ok(None);
         }
         let url = format!("{}{NVUE_SDN_PARTITIONS}/{partition_id}", self.base_url);
@@ -110,7 +110,7 @@ impl NvueClient {
     }
 
     pub async fn get_interfaces(&self) -> Result<Option<InterfacesResponse>, HealthError> {
-        if !self.nvue_paths.interfaces_enabled {
+        if !self.paths.interfaces_enabled {
             return Ok(None);
         }
         let url = format!("{}{NVUE_INTERFACES}", self.base_url);

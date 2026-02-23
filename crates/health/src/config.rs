@@ -324,48 +324,79 @@ impl Default for NmxtCollectorConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct NvueCollectorConfig {
-    /// Interval between NVUE REST + gNMI poll iterations.
-    #[serde(with = "humantime_serde")]
-    pub poll_interval: Duration,
-
-    /// gNMI server port on the switch.
-    pub gnmi_port: u16,
-
-    /// ! Creation of TLS certs on switches is not yet implemented. This deafults to  ignore the CA chain on the switch.
-    /// ! Dangerously skip TLS certificate verification for both NVUE REST and gNMI
-    /// ! traffic is encrypted for passing credentials.
-    /// pub self_signed_tls: bool,
-
-    /// Timeout for individual REST/gNMI requests.
-    #[serde(with = "humantime_serde")]
-    pub request_timeout: Duration,
-
-    /// NVUE REST paths to poll.
-    pub nvue_paths: NvuePaths,
+    pub rest: Configurable<NvueRestConfig>,
+    pub gnmi: Configurable<NvueGnmiConfig>,
 }
 
 impl Default for NvueCollectorConfig {
     fn default() -> Self {
         Self {
-            poll_interval: Duration::from_secs(300),
-            gnmi_port: 9339,
-            // self_signed_tls: true,
-            request_timeout: Duration::from_secs(30),
-            nvue_paths: NvuePaths::default(),
+            rest: Configurable::Enabled(NvueRestConfig::default()),
+            gnmi: Configurable::Enabled(NvueGnmiConfig::default()),
         }
     }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
-pub struct NvuePaths {
+pub struct NvueRestConfig {
+    /// Interval between NVUE REST poll iterations.
+    #[serde(with = "humantime_serde")]
+    pub poll_interval: Duration,
+
+    /// Timeout for individual REST requests.
+    #[serde(with = "humantime_serde")]
+    pub request_timeout: Duration,
+
+    /// NVUE REST paths to poll.
+    pub paths: NvueRestPaths,
+}
+
+impl Default for NvueRestConfig {
+    fn default() -> Self {
+        Self {
+            poll_interval: Duration::from_secs(300),
+            request_timeout: Duration::from_secs(30),
+            paths: NvueRestPaths::default(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct NvueGnmiConfig {
+    /// gNMI server port on the switch.
+    pub gnmi_port: u16,
+
+    /// Interval between SAMPLE mode subscription updates.
+    #[serde(with = "humantime_serde")]
+    pub sample_interval: Duration,
+
+    /// Timeout for gRPC connection attempts.
+    #[serde(with = "humantime_serde")]
+    pub request_timeout: Duration,
+}
+
+impl Default for NvueGnmiConfig {
+    fn default() -> Self {
+        Self {
+            gnmi_port: 9339,
+            sample_interval: Duration::from_secs(300),
+            request_timeout: Duration::from_secs(30),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct NvueRestPaths {
     pub system_health_enabled: bool,
     pub cluster_apps_enabled: bool,
     pub sdn_partitions_enabled: bool,
     pub interfaces_enabled: bool,
 }
 
-impl Default for NvuePaths {
+impl Default for NvueRestPaths {
     fn default() -> Self {
         Self {
             system_health_enabled: true,
@@ -582,10 +613,19 @@ mod tests {
         assert_eq!(config.cache_size, 100);
 
         if let Configurable::Enabled(ref nvue) = config.collectors.nvue {
-            assert_eq!(nvue.poll_interval, Duration::from_secs(60));
-            assert_eq!(nvue.gnmi_port, 9339);
-            // assert!(nvue.self_signed_tls);
-            assert_eq!(nvue.request_timeout, Duration::from_secs(30));
+            if let Configurable::Enabled(ref rest) = nvue.rest {
+                assert_eq!(rest.poll_interval, Duration::from_secs(60));
+                assert_eq!(rest.request_timeout, Duration::from_secs(30));
+            } else {
+                panic!("nvue rest config should be enabled in example config");
+            }
+            if let Configurable::Enabled(ref gnmi) = nvue.gnmi {
+                assert_eq!(gnmi.gnmi_port, 9339);
+                assert_eq!(gnmi.sample_interval, Duration::from_secs(300));
+                assert_eq!(gnmi.request_timeout, Duration::from_secs(30));
+            } else {
+                panic!("nvue gnmi config should be enabled in example config");
+            }
         } else {
             panic!("nvue config should be enabled in example config");
         }
@@ -701,14 +741,23 @@ cache_size = 50
     #[test]
     fn test_nvue_config_defaults() {
         let defaults = NvueCollectorConfig::default();
-        assert_eq!(defaults.poll_interval, Duration::from_secs(300));
-        assert_eq!(defaults.gnmi_port, 9339);
-        // assert!(defaults.self_signed_tls);
-        assert_eq!(defaults.request_timeout, Duration::from_secs(30));
-        assert!(defaults.nvue_paths.system_health_enabled);
-        assert!(defaults.nvue_paths.cluster_apps_enabled);
-        assert!(defaults.nvue_paths.sdn_partitions_enabled);
-        assert!(defaults.nvue_paths.interfaces_enabled);
+        assert!(defaults.rest.is_enabled());
+        assert!(defaults.gnmi.is_enabled());
+
+        if let Configurable::Enabled(ref rest) = defaults.rest {
+            assert_eq!(rest.poll_interval, Duration::from_secs(300));
+            assert_eq!(rest.request_timeout, Duration::from_secs(30));
+            assert!(rest.paths.system_health_enabled);
+            assert!(rest.paths.cluster_apps_enabled);
+            assert!(rest.paths.sdn_partitions_enabled);
+            assert!(rest.paths.interfaces_enabled);
+        }
+
+        if let Configurable::Enabled(ref gnmi) = defaults.gnmi {
+            assert_eq!(gnmi.gnmi_port, 9339);
+            assert_eq!(gnmi.sample_interval, Duration::from_secs(300));
+            assert_eq!(gnmi.request_timeout, Duration::from_secs(30));
+        }
     }
 
     #[test]
@@ -720,11 +769,14 @@ enabled = false
 [sinks.health_override]
 enabled = false
 
-[collectors.nvue]
+[collectors.nvue.rest]
 poll_interval = "2m"
-gnmi_port = 8080
-# self_signed_tls = false
 request_timeout = "45s"
+
+[collectors.nvue.gnmi]
+gnmi_port = 8080
+sample_interval = "3m"
+request_timeout = "20s"
 "#;
 
         let config: Config = Figment::new()
@@ -736,14 +788,20 @@ request_timeout = "45s"
         assert!(config.collectors.nvue.is_enabled());
 
         if let Configurable::Enabled(ref nvue) = config.collectors.nvue {
-            assert_eq!(nvue.poll_interval, Duration::from_secs(120));
-            assert_eq!(nvue.gnmi_port, 8080);
-            // assert!(!nvue.self_signed_tls);
-            assert_eq!(nvue.request_timeout, Duration::from_secs(45));
-            assert!(nvue.nvue_paths.system_health_enabled);
-            assert!(nvue.nvue_paths.cluster_apps_enabled);
-            assert!(nvue.nvue_paths.sdn_partitions_enabled);
-            assert!(nvue.nvue_paths.interfaces_enabled);
+            if let Configurable::Enabled(ref rest) = nvue.rest {
+                assert_eq!(rest.poll_interval, Duration::from_secs(120));
+                assert_eq!(rest.request_timeout, Duration::from_secs(45));
+                assert!(rest.paths.system_health_enabled);
+            } else {
+                panic!("nvue rest config should be enabled");
+            }
+            if let Configurable::Enabled(ref gnmi) = nvue.gnmi {
+                assert_eq!(gnmi.gnmi_port, 8080);
+                assert_eq!(gnmi.sample_interval, Duration::from_secs(180));
+                assert_eq!(gnmi.request_timeout, Duration::from_secs(20));
+            } else {
+                panic!("nvue gnmi config should be enabled");
+            }
         } else {
             panic!("nvue config should be enabled");
         }
@@ -778,6 +836,65 @@ enabled = false
     }
 
     #[test]
+    fn test_nvue_config_rest_only() {
+        let toml_content = r#"
+[endpoint_sources.carbide_api]
+enabled = false
+
+[sinks.health_override]
+enabled = false
+
+[collectors.nvue.rest]
+poll_interval = "1m"
+
+[collectors.nvue.gnmi]
+enabled = false
+"#;
+
+        let config: Config = Figment::new()
+            .merge(Serialized::defaults(Config::default()))
+            .merge(Toml::string(toml_content))
+            .extract()
+            .expect("failed to parse");
+
+        assert!(config.collectors.nvue.is_enabled());
+        if let Configurable::Enabled(ref nvue) = config.collectors.nvue {
+            assert!(nvue.rest.is_enabled());
+            assert!(!nvue.gnmi.is_enabled());
+        }
+    }
+
+    #[test]
+    fn test_nvue_config_gnmi_only() {
+        let toml_content = r#"
+[endpoint_sources.carbide_api]
+enabled = false
+
+[sinks.health_override]
+enabled = false
+
+[collectors.nvue.rest]
+enabled = false
+
+[collectors.nvue.gnmi]
+gnmi_port = 9339
+sample_interval = "5m"
+"#;
+
+        let config: Config = Figment::new()
+            .merge(Serialized::defaults(Config::default()))
+            .merge(Toml::string(toml_content))
+            .extract()
+            .expect("failed to parse");
+
+        assert!(config.collectors.nvue.is_enabled());
+        if let Configurable::Enabled(ref nvue) = config.collectors.nvue {
+            assert!(!nvue.rest.is_enabled());
+            assert!(nvue.gnmi.is_enabled());
+        }
+    }
+
+    #[test]
     fn test_nvue_config_selective_endpoints() {
         let toml_content = r#"
 [endpoint_sources.carbide_api]
@@ -786,14 +903,17 @@ enabled = false
 [sinks.health_override]
 enabled = false
 
-[collectors.nvue]
+[collectors.nvue.rest]
 poll_interval = "1m"
 
-[collectors.nvue.nvue_paths]
+[collectors.nvue.rest.paths]
 system_health_enabled = true
 cluster_apps_enabled = false
 sdn_partitions_enabled = true
 interfaces_enabled = false
+
+[collectors.nvue.gnmi]
+enabled = false
 "#;
 
         let config: Config = Figment::new()
@@ -803,10 +923,15 @@ interfaces_enabled = false
             .expect("failed to parse nvue config with selective endpoints");
 
         if let Configurable::Enabled(ref nvue) = config.collectors.nvue {
-            assert!(nvue.nvue_paths.system_health_enabled);
-            assert!(!nvue.nvue_paths.cluster_apps_enabled);
-            assert!(nvue.nvue_paths.sdn_partitions_enabled);
-            assert!(!nvue.nvue_paths.interfaces_enabled);
+            if let Configurable::Enabled(ref rest) = nvue.rest {
+                assert!(rest.paths.system_health_enabled);
+                assert!(!rest.paths.cluster_apps_enabled);
+                assert!(rest.paths.sdn_partitions_enabled);
+                assert!(!rest.paths.interfaces_enabled);
+            } else {
+                panic!("nvue rest config should be enabled");
+            }
+            assert!(!nvue.gnmi.is_enabled());
         } else {
             panic!("nvue config should be enabled");
         }

@@ -21,10 +21,10 @@ use std::sync::Arc;
 use nv_redfish_core::Bmc;
 use prometheus::{GaugeVec, Opts};
 
-use super::client::NvueClient;
+use super::client::RestClient;
 use crate::HealthError;
 use crate::collectors::{IterationResult, PeriodicCollector};
-use crate::config::NvueCollectorConfig;
+use crate::config::NvueRestConfig;
 use crate::endpoint::{BmcEndpoint, EndpointMetadata};
 use crate::metrics::CollectorRegistry;
 use crate::sink::{CollectorEvent, DataSink, EventContext, MetricSample};
@@ -59,13 +59,13 @@ fn diagnostic_status_to_f64(status: &str) -> f64 {
 }
 
 pub struct NvueRestCollectorConfig {
-    pub nvue_config: NvueCollectorConfig,
+    pub rest_config: NvueRestConfig,
     pub collector_registry: Arc<CollectorRegistry>,
     pub data_sink: Option<Arc<dyn DataSink>>,
 }
 
 pub struct NvueRestCollector {
-    client: NvueClient,
+    client: RestClient,
     switch_id: String,
     switch_ip: String,
     switch_mac: String,
@@ -94,16 +94,16 @@ impl<B: Bmc + 'static> PeriodicCollector<B> for NvueRestCollector {
         let switch_mac = endpoint.addr.mac.to_string();
         let event_context = EventContext::from_endpoint(endpoint.as_ref(), COLLECTOR_NAME);
 
-        let nvue_cfg = &config.nvue_config;
-        // self_signed_tls is always true -- see commented-out field in NvueCollectorConfig
-        let client = NvueClient::new(
+        let rest_cfg = &config.rest_config;
+        // self_signed_tls is always true -- TLS cert provisioning on switches is not yet implemented
+        let client = RestClient::new(
             switch_id.clone(),
             &switch_ip,
             Some(endpoint.credentials.username.clone()),
             Some(endpoint.credentials.password.clone()),
-            nvue_cfg.request_timeout,
+            rest_cfg.request_timeout,
             true,
-            nvue_cfg.nvue_paths.clone(),
+            rest_cfg.paths.clone(),
         )?;
 
         let registry = config.collector_registry.registry();

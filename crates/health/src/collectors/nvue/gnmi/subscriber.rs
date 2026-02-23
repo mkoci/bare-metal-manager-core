@@ -28,7 +28,7 @@ use super::proto;
 use crate::HealthError;
 use crate::collectors::Collector;
 use crate::collectors::runtime::ExponentialBackoff;
-use crate::config::NvueCollectorConfig;
+use crate::config::NvueGnmiConfig;
 use crate::endpoint::{BmcEndpoint, EndpointMetadata};
 use crate::metrics::CollectorRegistry;
 use crate::sink::{DataSink, EventContext};
@@ -171,7 +171,7 @@ struct GnmiStreamConfig {
 
 pub fn spawn_gnmi_collector(
     endpoint: &BmcEndpoint,
-    nvue_config: &NvueCollectorConfig,
+    gnmi_config: &NvueGnmiConfig,
     collector_registry: Arc<CollectorRegistry>,
     data_sink: Option<Arc<dyn DataSink>>,
 ) -> Result<Collector, HealthError> {
@@ -186,10 +186,10 @@ pub fn spawn_gnmi_collector(
     let client = GnmiClient::new(
         switch_id.clone(),
         &switch_ip,
-        nvue_config.gnmi_port,
+        gnmi_config.gnmi_port,
         Some(endpoint.credentials.username.clone()),
         Some(endpoint.credentials.password.clone()),
-        nvue_config.request_timeout,
+        gnmi_config.request_timeout,
     );
 
     let registry = collector_registry.registry();
@@ -208,7 +208,7 @@ pub fn spawn_gnmi_collector(
     let stream_config = GnmiStreamConfig {
         client,
         paths: nvue_subscribe_paths(),
-        sample_interval_nanos: nvue_config.poll_interval.as_nanos() as u64,
+        sample_interval_nanos: gnmi_config.sample_interval.as_nanos() as u64,
     };
 
     let processor = GnmiProcessor {

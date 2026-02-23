@@ -224,6 +224,7 @@ pub(super) async fn spawn_collectors_for_endpoint(
     }
 
     if let Configurable::Enabled(nvue_cfg) = &ctx.nvue_config
+        && let Configurable::Enabled(rest_cfg) = &nvue_cfg.rest
         && !ctx.collectors.contains(CollectorKind::NvueRest, &key)
         && matches!(endpoint.metadata, Some(EndpointMetadata::Switch(_)))
     {
@@ -234,9 +235,9 @@ pub(super) async fn spawn_collectors_for_endpoint(
         match Collector::start::<NvueRestCollector>(
             endpoint_arc.clone(),
             ctx.limiter.clone(),
-            nvue_cfg.poll_interval,
+            rest_cfg.poll_interval,
             NvueRestCollectorConfig {
-                nvue_config: nvue_cfg.clone(),
+                rest_config: rest_cfg.clone(),
                 collector_registry: collector_registry.clone(),
                 data_sink: data_sink.clone(),
             },
@@ -264,6 +265,7 @@ pub(super) async fn spawn_collectors_for_endpoint(
     }
 
     if let Configurable::Enabled(nvue_cfg) = &ctx.nvue_config
+        && let Configurable::Enabled(gnmi_cfg) = &nvue_cfg.gnmi
         && !ctx.collectors.contains(CollectorKind::NvueGnmi, &key)
         && matches!(endpoint.metadata, Some(EndpointMetadata::Switch(_)))
     {
@@ -271,7 +273,7 @@ pub(super) async fn spawn_collectors_for_endpoint(
             format!("nvue_gnmi_collector_{}", endpoint.addr.hash_key()),
             metrics_prefix,
         )?);
-        match spawn_gnmi_collector(endpoint, nvue_cfg, collector_registry, data_sink.clone()) {
+        match spawn_gnmi_collector(endpoint, gnmi_cfg, collector_registry, data_sink.clone()) {
             Ok(handle) => {
                 ctx.collectors
                     .insert(CollectorKind::NvueGnmi, key.clone(), handle);
