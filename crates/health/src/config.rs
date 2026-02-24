@@ -375,6 +375,10 @@ pub struct NvueGnmiConfig {
     /// Timeout for gRPC connection attempts.
     #[serde(with = "humantime_serde")]
     pub request_timeout: Duration,
+
+    /// Enable ON_CHANGE subscription for the configured system-events path
+    #[serde(alias = "events_enabled")]
+    pub system_events_subscription_enabled: bool,
 }
 
 impl Default for NvueGnmiConfig {
@@ -383,6 +387,7 @@ impl Default for NvueGnmiConfig {
             gnmi_port: 9339,
             sample_interval: Duration::from_secs(300),
             request_timeout: Duration::from_secs(30),
+            system_events_subscription_enabled: true,
         }
     }
 }
@@ -757,6 +762,7 @@ cache_size = 50
             assert_eq!(gnmi.gnmi_port, 9339);
             assert_eq!(gnmi.sample_interval, Duration::from_secs(300));
             assert_eq!(gnmi.request_timeout, Duration::from_secs(30));
+            assert!(gnmi.system_events_subscription_enabled);
         }
     }
 
@@ -932,6 +938,37 @@ enabled = false
                 panic!("nvue rest config should be enabled");
             }
             assert!(!nvue.gnmi.is_enabled());
+        } else {
+            panic!("nvue config should be enabled");
+        }
+    }
+
+    #[test]
+    fn test_nvue_gnmi_events_disabled() {
+        let toml_content = r#"
+[endpoint_sources.carbide_api]
+enabled = false
+
+[sinks.health_override]
+enabled = false
+
+[collectors.nvue.gnmi]
+gnmi_port = 9339
+system_events_subscription_enabled = false
+"#;
+
+        let config: Config = Figment::new()
+            .merge(Serialized::defaults(Config::default()))
+            .merge(Toml::string(toml_content))
+            .extract()
+            .expect("failed to parse");
+
+        if let Configurable::Enabled(ref nvue) = config.collectors.nvue {
+            if let Configurable::Enabled(ref gnmi) = nvue.gnmi {
+                assert!(!gnmi.system_events_subscription_enabled);
+            } else {
+                panic!("gnmi config should be enabled");
+            }
         } else {
             panic!("nvue config should be enabled");
         }

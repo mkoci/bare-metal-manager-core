@@ -28,13 +28,11 @@ use super::subscriber::GnmiStreamMetrics;
 use crate::HealthError;
 use crate::sink::{CollectorEvent, DataSink, EventContext, MetricSample};
 
-pub(crate) const COLLECTOR_NAME: &str = "nvue_gnmi";
+/// Stream ID used in gNMI subscription (metric names and collector_type).
+pub(crate) const NVUE_GNMI_SAMPLE_STREAM_ID: &str = "nvue_gnmi";
 
-// ---------------------------------------------------------------------------
-// GnmiDataGauges -- telemetry data metrics
-// ---------------------------------------------------------------------------
-
-pub(crate) struct GnmiDataGauges {
+/// GnmiSampleDataGauges provides metrics surface for SAMPLE subscription
+pub(crate) struct GnmiSampleDataGauges {
     interface_oper_status: GaugeVec,
     interface_in_errors: GaugeVec,
     interface_out_errors: GaugeVec,
@@ -46,7 +44,7 @@ pub(crate) struct GnmiDataGauges {
     leak_sensor_state: GaugeVec,
 }
 
-impl GnmiDataGauges {
+impl GnmiSampleDataGauges {
     pub(crate) fn new(registry: &prometheus::Registry, prefix: &str) -> Result<Self, HealthError> {
         let iface_labels = &["switch_id", "switch_ip", "switch_mac", "interface_name"];
         let comp_labels = &["switch_id", "switch_ip", "switch_mac", "component_name"];
@@ -142,14 +140,9 @@ fn register_gauge(
     Ok(gauge)
 }
 
-// ---------------------------------------------------------------------------
-// GnmiProcessor -- notification processing state
-// ---------------------------------------------------------------------------
-
-/// Bundles the state needed to process gNMI notifications into
-/// prometheus gauges and DataSink metric events.
-pub(crate) struct GnmiProcessor {
-    pub(crate) data_gauges: GnmiDataGauges,
+/// the processor ontains the state needed to process NVUE gNMI SAMPLE notifications into prometheus gauges and DataSink metric events.
+pub(crate) struct GnmiSampleProcessor {
+    pub(crate) data_gauges: GnmiSampleDataGauges,
     pub(crate) data_sink: Option<Arc<dyn DataSink>>,
     pub(crate) event_context: EventContext,
     pub(crate) switch_id: String,
@@ -157,7 +150,7 @@ pub(crate) struct GnmiProcessor {
     pub(crate) switch_mac: String,
 }
 
-impl GnmiProcessor {
+impl GnmiSampleProcessor {
     pub(crate) fn process_subscribe_response(
         &self,
         resp: &proto::SubscribeResponse,
@@ -171,7 +164,7 @@ impl GnmiProcessor {
                 tracing::warn!(
                     code = e.code,
                     message = %e.message,
-                    "nvue_gnmi: server error in stream"
+                    "nvue_gnmi SAMPLE: server error in stream"
                 );
                 return;
             }
@@ -435,7 +428,7 @@ impl GnmiProcessor {
             &self.event_context,
             &CollectorEvent::Metric(MetricSample {
                 key,
-                name: COLLECTOR_NAME.to_string(),
+                name: NVUE_GNMI_SAMPLE_STREAM_ID.to_string(),
                 metric_type: metric_type.to_string(),
                 unit: unit.to_string(),
                 value,
@@ -490,7 +483,7 @@ fn component_health_to_f64(status: Option<&str>) -> f64 {
     }
 }
 
-// gNMI leaf: /platform-general/leak-sensors/leak-sensor[id=X]/state/state
+// /platform-general/leak-sensors/leak-sensor[id=X]/state/state
 // NVOS values from nvidia-platform-general-ext LeakSensors type:
 //   "OK"    -> 0.0  (no leak)
 //   "LEAK"  -> 1.0  (leak detected)
@@ -508,10 +501,6 @@ pub(crate) fn now_unix_secs() -> f64 {
         .map(|d| d.as_secs_f64())
         .unwrap_or(0.0)
 }
-
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
 
 #[cfg(test)]
 mod tests {
@@ -606,7 +595,7 @@ mod tests {
         }
     }
 
-    fn test_processor() -> GnmiProcessor {
+    fn test_processor() -> GnmiSampleProcessor {
         use std::str::FromStr;
 
         use mac_address::MacAddress;
@@ -614,7 +603,7 @@ mod tests {
         use crate::endpoint::BmcAddr;
 
         let registry = prometheus::Registry::new();
-        let data_gauges = GnmiDataGauges::new(&registry, "test").unwrap();
+        let data_gauges = GnmiSampleDataGauges::new(&registry, "test").unwrap();
         let addr = BmcAddr {
             ip: "10.0.0.1".parse().unwrap(),
             port: None,
@@ -623,10 +612,10 @@ mod tests {
         let event_context = EventContext {
             endpoint_key: "aa:bb:cc:dd:ee:ff".to_string(),
             addr,
-            collector_type: COLLECTOR_NAME,
+            collector_type: NVUE_GNMI_SAMPLE_STREAM_ID,
             metadata: None,
         };
-        GnmiProcessor {
+        GnmiSampleProcessor {
             data_gauges,
             data_sink: None,
             event_context,

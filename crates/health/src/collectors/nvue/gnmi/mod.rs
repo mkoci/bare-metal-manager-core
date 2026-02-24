@@ -16,7 +16,8 @@
  */
 
 pub(crate) mod client;
-pub(crate) mod processor;
+pub(crate) mod on_change_processor;
+pub(crate) mod sample_processor;
 pub(crate) mod subscriber;
 
 #[allow(clippy::enum_variant_names)]
