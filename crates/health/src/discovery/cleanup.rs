@@ -83,6 +83,8 @@ mod tests {
         );
         maps.insert(CollectorKind::Firmware, HashMap::new());
         maps.insert(CollectorKind::Nmxt, HashMap::new());
+        maps.insert(CollectorKind::NvueRest, HashMap::new());
+        maps.insert(CollectorKind::NvueGnmi, HashMap::new());
 
         let active = HashSet::from(["b".to_string()]);
 
