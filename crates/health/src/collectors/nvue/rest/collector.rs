@@ -282,17 +282,14 @@ impl<B: Bmc + 'static> PeriodicCollector<B> for NvueRestCollector {
                         Some(part_id),
                         health_value,
                         "state",
-                        partition_labels,
+                        partition_labels.clone(),
                     );
                     self.emit_metric(
                         "partition_gpu_count",
                         Some(part_id),
                         gpu_count,
                         "count",
-                        vec![
-                            (Cow::Borrowed("partition_id"), part_id.clone()),
-                            (Cow::Borrowed("partition_name"), part_name.to_string()),
-                        ],
+                        partition_labels,
                     );
                     entity_count += 1;
                 }
