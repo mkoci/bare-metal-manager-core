@@ -18,7 +18,7 @@
 use std::borrow::Cow;
 use std::sync::Arc;
 
-use nv_redfish_core::Bmc;
+use nv_redfish::Bmc;
 use prometheus::{GaugeVec, Opts};
 
 use super::client::RestClient;

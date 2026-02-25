@@ -22,6 +22,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // upstream: https://github.com/openconfig/gnmi/tree/master/proto
     let gnmi_proto_dir = "src/collectors/nvue/gnmi/proto";
 
+    println!("cargo:rerun-if-changed={gnmi_proto_dir}");
+    println!("cargo:rerun-if-changed={gnmi_proto_dir}/gnmi_ext.proto");
+    println!("cargo:rerun-if-changed={gnmi_proto_dir}/gnmi.proto");
+
     tonic_prost_build::configure()
         .build_client(true)
         .build_server(false)
