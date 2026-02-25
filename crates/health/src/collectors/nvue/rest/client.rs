@@ -117,7 +117,16 @@ impl RestClient {
             return Ok(None);
         }
         let url = format!("{}{NVUE_INTERFACES}", self.base_url);
-        self.do_get(&url, &[]).await.map(Some)
+        self.do_get(
+            &url,
+            &[
+                ("filter_", "type=nvl"),
+                ("include", "/*/type"),
+                ("include", "/*/link/diagnostics"),
+            ],
+        )
+        .await
+        .map(Some)
     }
 
     /// Fetch link diagnostics by flattening the interfaces response into
