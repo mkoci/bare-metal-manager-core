@@ -82,7 +82,7 @@ impl RestClient {
             return Ok(None);
         }
         let url = format!("{}{NVUE_SYSTEM_HEALTH}", self.base_url);
-        self.do_get(&url).await.map(Some)
+        self.do_get(&url, &[]).await.map(Some)
     }
 
     pub async fn get_cluster_apps(&self) -> Result<Option<ClusterAppsResponse>, HealthError> {
@@ -90,7 +90,7 @@ impl RestClient {
             return Ok(None);
         }
         let url = format!("{}{NVUE_CLUSTER_APPS}", self.base_url);
-        self.do_get(&url).await.map(Some)
+        self.do_get(&url, &[]).await.map(Some)
     }
 
     pub async fn get_sdn_partitions(&self) -> Result<Option<SdnPartitionsResponse>, HealthError> {
@@ -98,7 +98,7 @@ impl RestClient {
             return Ok(None);
         }
         let url = format!("{}{NVUE_SDN_PARTITIONS}", self.base_url);
-        self.do_get(&url).await.map(Some)
+        self.do_get(&url, &[]).await.map(Some)
     }
 
     pub async fn get_partition_detail(
@@ -109,7 +109,7 @@ impl RestClient {
             return Ok(None);
         }
         let url = format!("{}{NVUE_SDN_PARTITIONS}/{partition_id}", self.base_url);
-        self.do_get(&url).await.map(Some)
+        self.do_get(&url, &[]).await.map(Some)
     }
 
     pub async fn get_interfaces(&self) -> Result<Option<InterfacesResponse>, HealthError> {
@@ -117,7 +117,7 @@ impl RestClient {
             return Ok(None);
         }
         let url = format!("{}{NVUE_INTERFACES}", self.base_url);
-        self.do_get(&url).await.map(Some)
+        self.do_get(&url, &[]).await.map(Some)
     }
 
     /// Fetch link diagnostics by flattening the interfaces response into
@@ -140,8 +140,20 @@ impl RestClient {
         Ok(results)
     }
 
-    async fn do_get<T: for<'de> Deserialize<'de>>(&self, url: &str) -> Result<T, HealthError> {
+    async fn do_get<T: for<'de> Deserialize<'de>>(
+        &self,
+        url: &str,
+        extra_query: &[(&str, &str)],
+    ) -> Result<T, HealthError> {
         let mut request = self.client.get(url);
+
+        // GET /interface (returning a collection) defaults to rev=applied, not operational.
+        // There is inconsistency across the NVUE Endpoints, so we need to check each.
+        // We want the actual system state (rev=operational), rather than defaults or what's configured (rev=applied).
+        request = request.query(&[("rev", "operational")]);
+        if !extra_query.is_empty() {
+            request = request.query(extra_query);
+        }
 
         if let (Some(user), Some(pass)) = (&self.username, &self.password) {
             request = request.basic_auth(user, Some(pass));
