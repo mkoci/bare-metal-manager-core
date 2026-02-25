@@ -244,6 +244,7 @@ impl GnmiOnChangeProcessor {
     }
 }
 
+/// note for the reader: the NVUE gNMI ON_CHANGE response format will only ever have one keyed element.
 fn find_instance_key<'a>(elems: &[&'a PathElem]) -> Option<&'a str> {
     elems
         .iter()
