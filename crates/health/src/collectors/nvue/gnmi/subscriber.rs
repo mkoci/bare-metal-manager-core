@@ -221,7 +221,7 @@ pub fn spawn_gnmi_collector(
 
     let sample_config = GnmiStreamConfig {
         client: client.clone(),
-        paths: nvue_subscribe_paths(),
+        paths: nvue_subscribe_paths(&gnmi_config.paths),
         sample_interval_nanos: gnmi_config.sample_interval.as_nanos() as u64,
     };
 
@@ -234,7 +234,7 @@ pub fn spawn_gnmi_collector(
         switch_mac: switch_mac.clone(),
     };
 
-    let system_events_enabled = gnmi_config.system_events_subscription_enabled;
+    let system_events_enabled = gnmi_config.system_events_enabled;
     let on_change_state = if system_events_enabled {
         let on_change_const_labels = HashMap::from([
             (

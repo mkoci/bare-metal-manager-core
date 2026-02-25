@@ -376,9 +376,12 @@ pub struct NvueGnmiConfig {
     #[serde(with = "humantime_serde")]
     pub request_timeout: Duration,
 
-    /// Enable ON_CHANGE subscription for the configured system-events path
-    #[serde(alias = "events_enabled")]
-    pub system_events_subscription_enabled: bool,
+    /// Enable gNMI ON_CHANGE subscription for live system-event messages
+    #[serde(alias = "system_events_subscription_enabled", alias = "events_enabled")]
+    pub system_events_enabled: bool,
+
+    /// gNMI SAMPLE subscription paths
+    pub paths: NvueGnmiPaths,
 }
 
 impl Default for NvueGnmiConfig {
@@ -387,7 +390,26 @@ impl Default for NvueGnmiConfig {
             gnmi_port: 9339,
             sample_interval: Duration::from_secs(300),
             request_timeout: Duration::from_secs(30),
-            system_events_subscription_enabled: true,
+            system_events_enabled: true,
+            paths: NvueGnmiPaths::default(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct NvueGnmiPaths {
+    pub components_enabled: bool,
+    pub interfaces_enabled: bool,
+    pub leak_sensors_enabled: bool,
+}
+
+impl Default for NvueGnmiPaths {
+    fn default() -> Self {
+        Self {
+            components_enabled: true,
+            interfaces_enabled: true,
+            leak_sensors_enabled: true,
         }
     }
 }
@@ -762,7 +784,10 @@ cache_size = 50
             assert_eq!(gnmi.gnmi_port, 9339);
             assert_eq!(gnmi.sample_interval, Duration::from_secs(300));
             assert_eq!(gnmi.request_timeout, Duration::from_secs(30));
-            assert!(gnmi.system_events_subscription_enabled);
+            assert!(gnmi.system_events_enabled);
+            assert!(gnmi.paths.components_enabled);
+            assert!(gnmi.paths.interfaces_enabled);
+            assert!(gnmi.paths.leak_sensors_enabled);
         }
     }
 
@@ -954,7 +979,7 @@ enabled = false
 
 [collectors.nvue.gnmi]
 gnmi_port = 9339
-system_events_subscription_enabled = false
+system_events_enabled = false
 "#;
 
         let config: Config = Figment::new()
@@ -965,7 +990,7 @@ system_events_subscription_enabled = false
 
         if let Configurable::Enabled(ref nvue) = config.collectors.nvue {
             if let Configurable::Enabled(ref gnmi) = nvue.gnmi {
-                assert!(!gnmi.system_events_subscription_enabled);
+                assert!(!gnmi.system_events_enabled);
             } else {
                 panic!("gnmi config should be enabled");
             }

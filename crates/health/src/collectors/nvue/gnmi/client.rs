@@ -27,14 +27,23 @@ use super::proto::{
     SubscriptionMode,
 };
 use crate::HealthError;
+use crate::config::NvueGnmiPaths;
 
-/// The currently targeted gNMI subscription paths for critical health metrics.
-pub fn nvue_subscribe_paths() -> Vec<Path> {
-    vec![
-        build_path(&[("components", None), ("component", None)]),
-        build_path(&[("interfaces", None), ("interface", None)]),
-        build_path(&[("platform-general", None), ("leak-sensors", None)]),
-    ]
+pub fn nvue_subscribe_paths(paths_config: &NvueGnmiPaths) -> Vec<Path> {
+    let mut paths = Vec::with_capacity(3);
+    if paths_config.components_enabled {
+        paths.push(build_path(&[("components", None), ("component", None)]));
+    }
+    if paths_config.interfaces_enabled {
+        paths.push(build_path(&[("interfaces", None), ("interface", None)]));
+    }
+    if paths_config.leak_sensors_enabled {
+        paths.push(build_path(&[
+            ("platform-general", None),
+            ("leak-sensors", None),
+        ]));
+    }
+    paths
 }
 
 #[derive(Clone)]
@@ -661,8 +670,8 @@ mod tests {
     }
 
     #[test]
-    fn test_nvue_subscribe_paths() {
-        let paths = nvue_subscribe_paths();
+    fn test_nvue_subscribe_paths_all_enabled() {
+        let paths = nvue_subscribe_paths(&NvueGnmiPaths::default());
         assert_eq!(paths.len(), 3);
 
         assert_eq!(path_to_string(&paths[0]), "/components/component");
@@ -671,8 +680,29 @@ mod tests {
     }
 
     #[test]
+    fn test_nvue_subscribe_paths_selective() {
+        let paths = nvue_subscribe_paths(&NvueGnmiPaths {
+            components_enabled: false,
+            interfaces_enabled: true,
+            leak_sensors_enabled: false,
+        });
+        assert_eq!(paths.len(), 1);
+        assert_eq!(path_to_string(&paths[0]), "/interfaces/interface");
+    }
+
+    #[test]
+    fn test_nvue_subscribe_paths_none_enabled() {
+        let paths = nvue_subscribe_paths(&NvueGnmiPaths {
+            components_enabled: false,
+            interfaces_enabled: false,
+            leak_sensors_enabled: false,
+        });
+        assert!(paths.is_empty());
+    }
+
+    #[test]
     fn test_build_sample_subscribe_request() {
-        let paths = nvue_subscribe_paths();
+        let paths = nvue_subscribe_paths(&NvueGnmiPaths::default());
         let interval_nanos = 300_000_000_000u64; // 5 minutes
 
         let req = build_sample_subscribe_request(&paths, interval_nanos);
