@@ -59,6 +59,7 @@ const SHUTDOWN: f64 = 5.0;
 pub(crate) struct GnmiStreamMetrics {
     pub(crate) connection_state: Gauge,
     pub(crate) reconnections_total: Counter,
+    pub(crate) server_initiated_closures_total: Counter,
     pub(crate) connection_established_timestamp: Gauge,
     pub(crate) notifications_received_total: Counter,
     pub(crate) last_notification_timestamp: Gauge,
@@ -91,6 +92,15 @@ impl GnmiStreamMetrics {
             .const_labels(const_labels.clone()),
         )?;
         registry.register(Box::new(reconnections_total.clone()))?;
+
+        let server_initiated_closures_total = Counter::with_opts(
+            Opts::new(
+                format!("{prefix}_nvue_gnmi{stream_name}_server_initiated_closures_total"),
+                "Total times the server closed the stream cleanly",
+            )
+            .const_labels(const_labels.clone()),
+        )?;
+        registry.register(Box::new(server_initiated_closures_total.clone()))?;
 
         let connection_established_timestamp = Gauge::with_opts(
             Opts::new(
@@ -150,6 +160,7 @@ impl GnmiStreamMetrics {
         Ok(Self {
             connection_state,
             reconnections_total,
+            server_initiated_closures_total,
             connection_established_timestamp,
             notifications_received_total,
             last_notification_timestamp,
@@ -351,7 +362,7 @@ async fn gnmi_sample_task(
                 }
                 Ok(None) => {
                     stream_metrics.connection_state.set(IDLE);
-                    stream_metrics.reconnections_total.inc();
+                    stream_metrics.server_initiated_closures_total.inc();
                     tracing::info!(
                         switch_id = %sample_processor.switch_id,
                         "nvue_gnmi SAMPLE: stream closed by server, reconnecting"
@@ -448,7 +459,7 @@ async fn gnmi_on_change_task(
                 }
                 Ok(None) => {
                     stream_metrics.connection_state.set(IDLE);
-                    stream_metrics.reconnections_total.inc();
+                    stream_metrics.server_initiated_closures_total.inc();
                     tracing::info!(
                         switch_id = %on_change_processor.switch_id,
                         stream = %on_change_processor.collector_name,
@@ -475,5 +486,71 @@ async fn gnmi_on_change_task(
             _ = cancel_token.cancelled() => return,
             _ = tokio::time::sleep(backoff.next_delay()) => {},
         };
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn test_labels() -> HashMap<String, String> {
+        HashMap::from([
+            ("switch_id".to_string(), "test-switch".to_string()),
+            ("switch_ip".to_string(), "10.0.0.1".to_string()),
+        ])
+    }
+
+    #[test]
+    fn test_stream_metrics_registers_all_counters() {
+        let registry = prometheus::Registry::new();
+        let metrics = GnmiStreamMetrics::new(&registry, "test", "", test_labels()).unwrap();
+
+        metrics.reconnections_total.inc();
+        assert_eq!(metrics.reconnections_total.get(), 1.0);
+
+        metrics.server_initiated_closures_total.inc();
+        assert_eq!(metrics.server_initiated_closures_total.get(), 1.0);
+
+        metrics.stream_errors_total.inc();
+        assert_eq!(metrics.stream_errors_total.get(), 1.0);
+    }
+
+    #[test]
+    fn test_stream_metrics_server_closures_independent_from_reconnections() {
+        let registry = prometheus::Registry::new();
+        let metrics = GnmiStreamMetrics::new(&registry, "test", "", test_labels()).unwrap();
+
+        metrics.server_initiated_closures_total.inc();
+        metrics.server_initiated_closures_total.inc();
+        assert_eq!(metrics.server_initiated_closures_total.get(), 2.0);
+        assert_eq!(metrics.reconnections_total.get(), 0.0);
+
+        metrics.reconnections_total.inc();
+        assert_eq!(metrics.reconnections_total.get(), 1.0);
+        assert_eq!(metrics.server_initiated_closures_total.get(), 2.0);
+    }
+
+    #[test]
+    fn test_stream_metrics_duplicate_registration_fails() {
+        let registry = prometheus::Registry::new();
+        let _ = GnmiStreamMetrics::new(&registry, "test", "", test_labels()).unwrap();
+        let result = GnmiStreamMetrics::new(&registry, "test", "", test_labels());
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_stream_metrics_distinct_stream_names_coexist() {
+        let registry = prometheus::Registry::new();
+        let sample = GnmiStreamMetrics::new(&registry, "test", "", test_labels()).unwrap();
+        let events_labels = HashMap::from([
+            ("switch_id".to_string(), "test-switch".to_string()),
+            ("switch_ip".to_string(), "10.0.0.2".to_string()),
+        ]);
+        let events =
+            GnmiStreamMetrics::new(&registry, "test", "_events", events_labels).unwrap();
+
+        sample.server_initiated_closures_total.inc();
+        assert_eq!(sample.server_initiated_closures_total.get(), 1.0);
+        assert_eq!(events.server_initiated_closures_total.get(), 0.0);
     }
 }
