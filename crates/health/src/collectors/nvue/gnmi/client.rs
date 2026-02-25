@@ -139,7 +139,7 @@ impl GnmiClient {
 
         let stream = tokio_stream::once(subscribe_request);
         let mut request = Request::new(stream);
-        add_auth_metadata(&mut request, &self.username, &self.password);
+        add_auth_metadata(&mut request, &self.username, &self.password)?;
 
         let response = client.subscribe(request).await.map_err(|e| {
             HealthError::GnmiError(format!(
@@ -198,7 +198,7 @@ impl GnmiClient {
 
         let stream = tokio_stream::once(subscribe_request);
         let mut request = Request::new(stream);
-        add_auth_metadata(&mut request, &self.username, &self.password);
+        add_auth_metadata(&mut request, &self.username, &self.password)?;
 
         let response = client.subscribe(request).await.map_err(|e| {
             HealthError::GnmiError(format!(
@@ -229,7 +229,7 @@ impl GnmiClient {
 
         let stream = tokio_stream::once(subscribe_request);
         let mut request = Request::new(stream);
-        add_auth_metadata(&mut request, &self.username, &self.password);
+        add_auth_metadata(&mut request, &self.username, &self.password)?;
 
         let response = client.subscribe(request).await.map_err(|e| {
             HealthError::GnmiError(format!(
@@ -322,21 +322,20 @@ fn add_auth_metadata<T>(
     request: &mut Request<T>,
     username: &Option<String>,
     password: &Option<String>,
-) {
+) -> Result<(), HealthError> {
     if let Some(username) = username {
-        if let Ok(value) = username.parse() {
-            request.metadata_mut().insert("username", value);
-        } else {
-            tracing::warn!("invalid username for gRPC metadata, skipping");
-        }
+        let value = username.parse().map_err(|e| {
+            HealthError::GnmiError(format!("invalid username for gRPC metadata: {e}"))
+        })?;
+        request.metadata_mut().insert("username", value);
     }
     if let Some(password) = password {
-        if let Ok(value) = password.parse() {
-            request.metadata_mut().insert("password", value);
-        } else {
-            tracing::warn!("invalid password for gRPC metadata, skipping");
-        }
+        let value = password.parse().map_err(|e| {
+            HealthError::GnmiError(format!("invalid password for gRPC metadata: {e}"))
+        })?;
+        request.metadata_mut().insert("password", value);
     }
+    Ok(())
 }
 
 // ---------------------------------------------------------------------------
