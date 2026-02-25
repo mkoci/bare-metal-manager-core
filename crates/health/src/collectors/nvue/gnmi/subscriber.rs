@@ -28,10 +28,10 @@ use super::client::{
 use super::on_change_processor::{
     GnmiOnChangeProcessor, ON_CHANGE_STREAM_ID_SYSTEM_EVENTS, OnChangeStreamMetrics,
 };
+use super::proto;
 use super::sample_processor::{
     GnmiSampleDataGauges, GnmiSampleProcessor, NVUE_GNMI_SAMPLE_STREAM_ID, now_unix_secs,
 };
-use super::proto;
 use crate::HealthError;
 use crate::collectors::Collector;
 use crate::collectors::runtime::ExponentialBackoff;
@@ -191,8 +191,7 @@ pub fn spawn_gnmi_collector(
     };
     let switch_ip = endpoint.addr.ip.to_string();
     let switch_mac = endpoint.addr.mac.to_string();
-    let sample_event_context =
-        EventContext::from_endpoint(endpoint, NVUE_GNMI_SAMPLE_STREAM_ID);
+    let sample_event_context = EventContext::from_endpoint(endpoint, NVUE_GNMI_SAMPLE_STREAM_ID);
 
     let client = GnmiClient::new(
         switch_id.clone(),
@@ -328,7 +327,7 @@ async fn gnmi_sample_task(
                 );
                 s
             }
-            Err(e) => { 
+            Err(e) => {
                 stream_metrics.connection_state.set(TRANSIENT_FAILURE);
                 stream_metrics.reconnections_total.inc();
                 tracing::warn!(
@@ -546,8 +545,7 @@ mod tests {
             ("switch_id".to_string(), "test-switch".to_string()),
             ("switch_ip".to_string(), "10.0.0.2".to_string()),
         ]);
-        let events =
-            GnmiStreamMetrics::new(&registry, "test", "_events", events_labels).unwrap();
+        let events = GnmiStreamMetrics::new(&registry, "test", "_events", events_labels).unwrap();
 
         sample.server_initiated_closures_total.inc();
         assert_eq!(sample.server_initiated_closures_total.get(), 1.0);

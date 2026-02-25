@@ -71,7 +71,10 @@ pub enum HealthError {
     BmcError(#[from] Box<dyn std::error::Error + Send + Sync>),
 
     #[error("{protocol} error: {message}")]
-    HttpError { protocol: &'static str, message: String },
+    HttpError {
+        protocol: &'static str,
+        message: String,
+    },
 
     #[error("gNMI error: {0}")]
     GnmiError(String),

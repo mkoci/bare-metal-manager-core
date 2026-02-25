@@ -60,11 +60,9 @@ impl RestClient {
             builder = builder.danger_accept_invalid_certs(true);
         }
 
-        let client = builder.build().map_err(|e| {
-            HealthError::HttpError {
-                protocol: "HTTPS",
-                message: format!("{base_url}: failed to create HTTP client: {e}"),
-            }
+        let client = builder.build().map_err(|e| HealthError::HttpError {
+            protocol: "HTTPS",
+            message: format!("{base_url}: failed to create HTTP client: {e}"),
         })?;
 
         Ok(Self {
@@ -170,14 +168,9 @@ impl RestClient {
 
         request = request.header("Accept", "application/json");
 
-        let response = request.send().await.map_err(|e| {
-            HealthError::HttpError {
-                protocol: "HTTPS",
-                message: format!(
-                    "{url}: request failed for switch {}: {e}",
-                    self.switch_id
-                ),
-            }
+        let response = request.send().await.map_err(|e| HealthError::HttpError {
+            protocol: "HTTPS",
+            message: format!("{url}: request failed for switch {}: {e}", self.switch_id),
         })?;
 
         if !response.status().is_success() {
@@ -185,21 +178,16 @@ impl RestClient {
             let body = response.text().await.unwrap_or_default();
             return Err(HealthError::HttpError {
                 protocol: "HTTPS",
-                message: format!(
-                    "{url}: HTTP {status} for switch {}: {body}",
-                    self.switch_id
-                ),
+                message: format!("{url}: HTTP {status} for switch {}: {body}", self.switch_id),
             });
         }
 
-        response.json().await.map_err(|e| {
-            HealthError::HttpError {
-                protocol: "HTTPS",
-                message: format!(
-                    "{url}: failed to parse response for switch {}: {e}",
-                    self.switch_id
-                ),
-            }
+        response.json().await.map_err(|e| HealthError::HttpError {
+            protocol: "HTTPS",
+            message: format!(
+                "{url}: failed to parse response for switch {}: {e}",
+                self.switch_id
+            ),
         })
     }
 }

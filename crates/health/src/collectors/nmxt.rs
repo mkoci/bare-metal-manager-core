@@ -130,13 +130,10 @@ async fn scrape_switch_nmxt_metrics(
         });
     }
 
-    let body = response
-        .text()
-        .await
-        .map_err(|e| HealthError::HttpError {
-            protocol: "HTTP",
-            message: format!("{url}: failed to read response body: {e}"),
-        })?;
+    let body = response.text().await.map_err(|e| HealthError::HttpError {
+        protocol: "HTTP",
+        message: format!("{url}: failed to read response body: {e}"),
+    })?;
 
     Ok(parse_prometheus_metrics(&body))
 }
