@@ -147,9 +147,7 @@ impl RestClient {
             request = request.basic_auth(user, Some(pass));
         }
 
-        request = request
-            .header("Accept", "application/json")
-            .header("Content-Type", "application/json");
+        request = request.header("Accept", "application/json");
 
         let response = request.send().await.map_err(|e| {
             HealthError::HttpError {
