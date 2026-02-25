@@ -140,7 +140,7 @@ fn register_gauge(
     Ok(gauge)
 }
 
-/// the processor ontains the state needed to process NVUE gNMI SAMPLE notifications into prometheus gauges and DataSink metric events.
+/// the processor contains the state needed to process NVUE gNMI SAMPLE notifications into Prometheus gauges and DataSink metric events.
 pub(crate) struct GnmiSampleProcessor {
     pub(crate) data_gauges: GnmiSampleDataGauges,
     pub(crate) data_sink: Option<Arc<dyn DataSink>>,

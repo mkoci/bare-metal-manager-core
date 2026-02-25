@@ -61,7 +61,10 @@ impl RestClient {
         }
 
         let client = builder.build().map_err(|e| {
-            HealthError::HttpsError(format!("{base_url}: failed to create HTTP client: {e}"))
+            HealthError::HttpError {
+                protocol: "HTTPS",
+                message: format!("{base_url}: failed to create HTTP client: {e}"),
+            }
         })?;
 
         Ok(Self {
@@ -149,26 +152,35 @@ impl RestClient {
             .header("Content-Type", "application/json");
 
         let response = request.send().await.map_err(|e| {
-            HealthError::HttpsError(format!(
-                "{url}: request failed for switch {}: {e}",
-                self.switch_id
-            ))
+            HealthError::HttpError {
+                protocol: "HTTPS",
+                message: format!(
+                    "{url}: request failed for switch {}: {e}",
+                    self.switch_id
+                ),
+            }
         })?;
 
         if !response.status().is_success() {
             let status = response.status();
             let body = response.text().await.unwrap_or_default();
-            return Err(HealthError::HttpsError(format!(
-                "{url}: HTTP {status} for switch {}: {body}",
-                self.switch_id
-            )));
+            return Err(HealthError::HttpError {
+                protocol: "HTTPS",
+                message: format!(
+                    "{url}: HTTP {status} for switch {}: {body}",
+                    self.switch_id
+                ),
+            });
         }
 
         response.json().await.map_err(|e| {
-            HealthError::HttpsError(format!(
-                "{url}: failed to parse response for switch {}: {e}",
-                self.switch_id
-            ))
+            HealthError::HttpError {
+                protocol: "HTTPS",
+                message: format!(
+                    "{url}: failed to parse response for switch {}: {e}",
+                    self.switch_id
+                ),
+            }
         })
     }
 }

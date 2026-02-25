@@ -118,19 +118,25 @@ async fn scrape_switch_nmxt_metrics(
         .timeout(Duration::from_secs(30))
         .send()
         .await
-        .map_err(|e| HealthError::HttpError(format!("{url}: request failed: {e}")))?;
+        .map_err(|e| HealthError::HttpError {
+            protocol: "HTTP",
+            message: format!("{url}: request failed: {e}"),
+        })?;
 
     if !response.status().is_success() {
-        return Err(HealthError::HttpError(format!(
-            "{url}: HTTP {}",
-            response.status()
-        )));
+        return Err(HealthError::HttpError {
+            protocol: "HTTP",
+            message: format!("{url}: HTTP {}", response.status()),
+        });
     }
 
     let body = response
         .text()
         .await
-        .map_err(|e| HealthError::HttpError(format!("{url}: failed to read response body: {e}")))?;
+        .map_err(|e| HealthError::HttpError {
+            protocol: "HTTP",
+            message: format!("{url}: failed to read response body: {e}"),
+        })?;
 
     Ok(parse_prometheus_metrics(&body))
 }
@@ -170,11 +176,12 @@ impl<B: Bmc + 'static> PeriodicCollector<B> for NmxtCollector {
         let http_client = reqwest::Client::builder()
             .timeout(Duration::from_secs(60))
             .build()
-            .map_err(|e| {
-                HealthError::HttpError(format!(
+            .map_err(|e| HealthError::HttpError {
+                protocol: "HTTP",
+                message: format!(
                     "http://{}:{}: failed to create HTTP client: {e}",
                     endpoint.addr.ip, NMXT_PORT
-                ))
+                ),
             })?;
 
         let registry = config.collector_registry.registry();
