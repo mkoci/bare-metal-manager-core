@@ -221,11 +221,11 @@ impl GnmiOnChangeProcessor {
             (Cow::Borrowed("switch_ip"), self.switch_ip.clone()),
             (Cow::Borrowed("switch_mac"), self.switch_mac.clone()),
             (Cow::Borrowed("instance_id"), instance_id.to_string()),
-            (Cow::Borrowed("severity"), severity.to_string()),
             (Cow::Borrowed("text"), text.to_string()),
         ];
         for (k, v) in row.iter() {
-            if k != "severity" && k != "text" {
+            // there is no enforcement of the "text" value in eventd in NVUE, guarding here for consistent labels
+            if k != "text" {
                 labels.push((Cow::Owned(k.clone()), v.clone()));
             }
         }
