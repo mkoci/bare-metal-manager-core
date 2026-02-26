@@ -17,8 +17,9 @@
 
 use std::time::Duration;
 
-use tonic::Request;
+use tonic::metadata::MetadataMap;
 use tonic::transport::{Channel, Endpoint};
+use tonic::{Extensions, Request};
 
 use super::proto::g_nmi_client::GNmiClient as TonicGnmiClient;
 use super::proto::subscription_list::Mode as SubscriptionListMode;
@@ -137,9 +138,9 @@ impl GnmiClient {
 
         let subscribe_request = build_sample_subscribe_request(paths, sample_interval_nanos);
 
+        let auth = build_auth_metadata(&self.username, &self.password)?;
         let stream = tokio_stream::once(subscribe_request);
-        let mut request = Request::new(stream);
-        add_auth_metadata(&mut request, &self.username, &self.password)?;
+        let request = Request::from_parts(auth, Extensions::default(), stream);
 
         let response = client.subscribe(request).await.map_err(|e| {
             HealthError::GnmiError(format!(
@@ -168,9 +169,9 @@ impl GnmiClient {
 
         let subscribe_request = build_on_change_subscribe_request(prefix, paths);
 
+        let auth = build_auth_metadata(&self.username, &self.password)?;
         let stream = tokio_stream::once(subscribe_request);
-        let mut request = Request::new(stream);
-        add_auth_metadata(&mut request, &self.username, &self.password)?;
+        let request = Request::from_parts(auth, Extensions::default(), stream);
 
         let response = client.subscribe(request).await.map_err(|e| {
             HealthError::GnmiError(format!(
@@ -259,24 +260,24 @@ fn build_sample_subscribe_request(paths: &[Path], sample_interval_nanos: u64) ->
     }
 }
 
-fn add_auth_metadata<T>(
-    request: &mut Request<T>,
+fn build_auth_metadata(
     username: &Option<String>,
     password: &Option<String>,
-) -> Result<(), HealthError> {
+) -> Result<MetadataMap, HealthError> {
+    let mut meta = MetadataMap::new();
     if let Some(username) = username {
         let value = username.parse().map_err(|e| {
             HealthError::GnmiError(format!("invalid username for gRPC metadata: {e}"))
         })?;
-        request.metadata_mut().insert("username", value);
+        meta.insert("username", value);
     }
     if let Some(password) = password {
         let value = password.parse().map_err(|e| {
             HealthError::GnmiError(format!("invalid password for gRPC metadata: {e}"))
         })?;
-        request.metadata_mut().insert("password", value);
+        meta.insert("password", value);
     }
-    Ok(())
+    Ok(meta)
 }
 
 /// Extract a string from a `TypedValue`, handling JSON-encoded bytes as well
