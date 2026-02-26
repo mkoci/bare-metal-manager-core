@@ -20,6 +20,7 @@ use std::time::Duration;
 
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
+use url::Url;
 
 use crate::HealthError;
 use crate::config::NvueRestPaths;
@@ -32,7 +33,7 @@ const NVUE_INTERFACES: &str = "/nvue_v1/interface";
 /// Client for NVUE REST API on NVUE-managed switches.
 pub struct RestClient {
     pub(crate) switch_id: String,
-    base_url: String,
+    base_url: Url,
     username: Option<String>,
     password: Option<String>,
     paths: NvueRestPaths,
@@ -49,7 +50,11 @@ impl RestClient {
         self_signed_tls: bool,
         paths: NvueRestPaths,
     ) -> Result<Self, HealthError> {
-        let base_url = format!("https://{host}");
+        let base_url =
+            Url::parse(&format!("https://{host}")).map_err(|e| HealthError::HttpError {
+                protocol: "HTTPS",
+                message: format!("https://{host}: invalid base URL: {e}"),
+            })?;
 
         let mut builder = Client::builder()
             .timeout(request_timeout)
@@ -79,24 +84,24 @@ impl RestClient {
         if !self.paths.system_health_enabled {
             return Ok(None);
         }
-        let url = format!("{}{NVUE_SYSTEM_HEALTH}", self.base_url);
-        self.do_get(&url, &[]).await.map(Some)
+        let url = self.join_path(NVUE_SYSTEM_HEALTH)?;
+        self.do_get(url, &[]).await.map(Some)
     }
 
     pub async fn get_cluster_apps(&self) -> Result<Option<ClusterAppsResponse>, HealthError> {
         if !self.paths.cluster_apps_enabled {
             return Ok(None);
         }
-        let url = format!("{}{NVUE_CLUSTER_APPS}", self.base_url);
-        self.do_get(&url, &[]).await.map(Some)
+        let url = self.join_path(NVUE_CLUSTER_APPS)?;
+        self.do_get(url, &[]).await.map(Some)
     }
 
     pub async fn get_sdn_partitions(&self) -> Result<Option<SdnPartitionsResponse>, HealthError> {
         if !self.paths.sdn_partitions_enabled {
             return Ok(None);
         }
-        let url = format!("{}{NVUE_SDN_PARTITIONS}", self.base_url);
-        self.do_get(&url, &[]).await.map(Some)
+        let url = self.join_path(NVUE_SDN_PARTITIONS)?;
+        self.do_get(url, &[]).await.map(Some)
     }
 
     pub async fn get_partition_detail(
@@ -106,17 +111,17 @@ impl RestClient {
         if !self.paths.sdn_partitions_enabled {
             return Ok(None);
         }
-        let url = format!("{}{NVUE_SDN_PARTITIONS}/{partition_id}", self.base_url);
-        self.do_get(&url, &[]).await.map(Some)
+        let url = self.join_path(&format!("{NVUE_SDN_PARTITIONS}/{partition_id}"))?;
+        self.do_get(url, &[]).await.map(Some)
     }
 
     pub async fn get_interfaces(&self) -> Result<Option<InterfacesResponse>, HealthError> {
         if !self.paths.interfaces_enabled {
             return Ok(None);
         }
-        let url = format!("{}{NVUE_INTERFACES}", self.base_url);
+        let url = self.join_path(NVUE_INTERFACES)?;
         self.do_get(
-            &url,
+            url,
             &[
                 ("filter_", "type=nvl"),
                 ("include", "/*/type"),
@@ -147,12 +152,19 @@ impl RestClient {
         Ok(results)
     }
 
+    fn join_path(&self, path: &str) -> Result<Url, HealthError> {
+        self.base_url.join(path).map_err(|e| HealthError::HttpError {
+            protocol: "HTTPS",
+            message: format!("{}: failed to join path {path}: {e}", self.base_url),
+        })
+    }
+
     async fn do_get<T: for<'de> Deserialize<'de>>(
         &self,
-        url: &str,
+        url: Url,
         extra_query: &[(&str, &str)],
     ) -> Result<T, HealthError> {
-        let mut request = self.client.get(url);
+        let mut request = self.client.get(url.as_str());
 
         // GET /interface (returning a collection) defaults to rev=applied, not operational.
         // There is inconsistency across the NVUE Endpoints, so we need to check each.

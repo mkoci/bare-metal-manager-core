@@ -93,12 +93,20 @@ impl GnmiClient {
 
     async fn connect(&self) -> Result<TonicGnmiClient<Channel>, HealthError> {
         let target = format!("{}:{}", self.host, self.port);
-        let uri = format!("https://{target}");
 
-        let endpoint = Endpoint::from_shared(uri)
+        let uri = http::Uri::builder()
+            .scheme("https")
+            .authority(target.as_str())
+            .path_and_query("/")
+            .build()
             .map_err(|e| {
-                HealthError::GnmiError(format!("switch {}: invalid endpoint: {e}", self.switch_id))
-            })?
+                HealthError::GnmiError(format!(
+                    "switch {}: invalid endpoint URI: {e}",
+                    self.switch_id
+                ))
+            })?;
+
+        let endpoint = Endpoint::from(uri)
             .connect_timeout(self.request_timeout)
             .timeout(self.request_timeout);
 

@@ -21,6 +21,7 @@ use std::time::Duration;
 
 use nv_redfish::core::Bmc;
 use prometheus::{GaugeVec, Opts};
+use url::Url;
 
 use crate::HealthError;
 use crate::collectors::{IterationResult, PeriodicCollector};
@@ -111,10 +112,15 @@ async fn scrape_switch_nmxt_metrics(
     http_client: &reqwest::Client,
     switch_ip: &str,
 ) -> Result<Vec<NmxtMetricSample>, HealthError> {
-    let url = format!("http://{}:{}{}", switch_ip, NMXT_PORT, NMXT_ENDPOINT);
+    let url = Url::parse(&format!("http://{switch_ip}:{NMXT_PORT}{NMXT_ENDPOINT}")).map_err(
+        |e| HealthError::HttpError {
+            protocol: "HTTP",
+            message: format!("http://{switch_ip}:{NMXT_PORT}: invalid URL: {e}"),
+        },
+    )?;
 
     let response = http_client
-        .get(&url)
+        .get(url.as_str())
         .timeout(Duration::from_secs(30))
         .send()
         .await
