@@ -231,9 +231,9 @@ impl GnmiSampleProcessor {
         val: &proto::TypedValue,
     ) {
         let labels = [
-            &*self.switch_id,
-            &*self.switch_ip,
-            &*self.switch_mac,
+            self.switch_id.as_str(),
+            self.switch_ip.as_str(),
+            self.switch_mac.as_str(),
             iface_name,
         ];
 
@@ -338,9 +338,9 @@ impl GnmiSampleProcessor {
         val: &proto::TypedValue,
     ) {
         let labels = [
-            &*self.switch_id,
-            &*self.switch_ip,
-            &*self.switch_mac,
+            self.switch_id.as_str(),
+            self.switch_ip.as_str(),
+            self.switch_mac.as_str(),
             comp_name,
         ];
 
@@ -379,9 +379,9 @@ impl GnmiSampleProcessor {
     fn process_leak_sensor_metric(&self, val: &proto::TypedValue, sensor_id: &str) {
         let v = leak_sensor_to_f64(typed_value_to_string(val).as_deref());
         let labels = [
-            &*self.switch_id,
-            &*self.switch_ip,
-            &*self.switch_mac,
+            self.switch_id.as_str(),
+            self.switch_ip.as_str(),
+            self.switch_mac.as_str(),
             sensor_id,
         ];
         self.data_gauges
