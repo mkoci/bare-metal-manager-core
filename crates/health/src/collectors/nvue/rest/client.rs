@@ -19,7 +19,8 @@ use std::collections::HashMap;
 use std::time::Duration;
 
 use reqwest::Client;
-use serde::{Deserialize, Serialize};
+use reqwest::header::ACCEPT;
+use serde::Deserialize;
 use url::Url;
 
 use crate::HealthError;
@@ -164,7 +165,7 @@ impl RestClient {
             request = request.basic_auth(user, Some(pass));
         }
 
-        request = request.header("Accept", "application/json");
+        request = request.header(ACCEPT, "application/json");
 
         let response = request.send().await.map_err(|e| {
             HealthError::HttpError(format!(
