@@ -21,12 +21,15 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use futures::StreamExt;
+use futures::TryStreamExt;
 use futures::stream::BoxStream;
 use http::header::InvalidHeaderValue;
 use http::{HeaderMap, header};
+use nv_redfish::ServiceRoot;
 use nv_redfish::bmc_http::reqwest::Client as ReqwestClient;
 use nv_redfish::bmc_http::{CacheSettings, HttpBmc};
 use nv_redfish::core::Bmc;
+use nv_redfish::event_service::EventStreamPayload;
 use prometheus::{Counter, Gauge, Histogram, HistogramOpts, Opts};
 use rand::Rng;
 use tokio::task::JoinHandle;
@@ -70,12 +73,11 @@ pub trait PeriodicCollector<B: Bmc>: Send + 'static {
 
 pub type EventStream<'a> = BoxStream<'a, Result<CollectorEvent, HealthError>>;
 
-type ConnectFuture<'a> =
+pub type ConnectFuture<'a> =
     Pin<Box<dyn std::future::Future<Output = Result<EventStream<'a>, HealthError>> + Send + 'a>>;
 
-/// trait for collectors that maintain a long-lived stream (SSE, gRPC, etc.)
-/// the runtime creates the BMC client and injects it. the collector opens the stream
-/// and maps protocol-specific payloads to CollectorEvent(s)
+/// Trait for collectors that maintain a long-lived stream (SSE, gRPC, etc.)
+/// runtime.rs creates the BMC client and injects it, the collector opens the stream and maps payloads to events
 pub trait StreamingCollector<B: Bmc>: Send + 'static {
     type Config: Send + 'static;
 
@@ -87,8 +89,7 @@ pub trait StreamingCollector<B: Bmc>: Send + 'static {
     where
         Self: Sized;
 
-    /// open or reopen the connection using the injected BMC.
-    /// called on init and after disconnect
+    /// Open or reopen the streaming connection using the injected BMC.
     fn connect(&mut self) -> ConnectFuture<'_>;
 
     fn collector_type(&self) -> &'static str;
@@ -133,6 +134,33 @@ impl ExponentialBackoff {
     pub fn reset(&mut self) {
         self.current = self.initial;
     }
+}
+
+pub type SseStream =
+    Pin<Box<dyn futures::TryStream<Ok = EventStreamPayload, Error = HealthError, Item = Result<EventStreamPayload, HealthError>> + Send>>;
+
+/// Open a Redfish SSE event stream from a BMC.
+pub async fn open_sse_stream<B: Bmc + 'static>(bmc: Arc<B>) -> Result<SseStream, HealthError> {
+    let root = ServiceRoot::new(bmc).await.map_err(|e| {
+        HealthError::GenericError(format!("failed to get ServiceRoot: {e}"))
+    })?;
+
+    let event_service = root
+        .event_service()
+        .await
+        .map_err(|e| HealthError::GenericError(format!("failed to get EventService: {e}")))?
+        .ok_or_else(|| {
+            HealthError::GenericError("BMC does not expose an EventService".to_string())
+        })?;
+
+    let stream = event_service
+        .events()
+        .await
+        .map_err(|e| HealthError::GenericError(format!("failed to open SSE stream: {e}")))?;
+
+    Ok(Box::pin(stream.map_err(|e| {
+        HealthError::GenericError(format!("SSE stream error: {e}"))
+    })))
 }
 
 // SSE EventSource readyState values for the connection_state gauge

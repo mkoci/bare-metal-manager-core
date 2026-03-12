@@ -16,5 +16,7 @@
  */
 
 mod periodic;
+mod sse;
 
 pub use periodic::{LogFileWriter, LogsCollector, LogsCollectorConfig, create_log_file_writer};
+pub use sse::{SseLogCollector, SseLogCollectorConfig};

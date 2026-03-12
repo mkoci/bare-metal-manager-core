@@ -23,11 +23,14 @@ mod runtime;
 mod sensors;
 
 pub use firmware::{FirmwareCollector, FirmwareCollectorConfig};
-pub use logs::{LogFileWriter, LogsCollector, LogsCollectorConfig, create_log_file_writer};
+pub use logs::{
+    LogFileWriter, LogsCollector, LogsCollectorConfig, SseLogCollector, SseLogCollectorConfig,
+    create_log_file_writer,
+};
 pub use nmxt::{NmxtCollector, NmxtCollectorConfig};
 pub use nvue::rest::collector::{NvueRestCollector, NvueRestCollectorConfig};
 pub use runtime::{
     BackoffConfig, Collector, EventStream, ExponentialBackoff, IterationResult, PeriodicCollector,
-    StreamMetrics, StreamingCollector,
+    StreamMetrics, StreamingCollector, open_sse_stream,
 };
 pub use sensors::{SensorCollector, SensorCollectorConfig};
