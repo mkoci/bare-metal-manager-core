@@ -20,9 +20,8 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use futures::StreamExt;
-use futures::TryStreamExt;
 use futures::stream::BoxStream;
+use futures::{StreamExt, TryStreamExt};
 use http::header::InvalidHeaderValue;
 use http::{HeaderMap, header};
 use nv_redfish::ServiceRoot;

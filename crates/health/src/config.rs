@@ -807,7 +807,8 @@ cache_size = 50
         });
         assert!(config.validate().is_err());
 
-        config.processors.leak_detection = Configurable::Enabled(LeakDetectionProcessorConfig::default());
+        config.processors.leak_detection =
+            Configurable::Enabled(LeakDetectionProcessorConfig::default());
 
         config.collectors.logs = Configurable::Enabled(LogsCollectorConfig {
             mode: LogCollectionMode::Periodic,

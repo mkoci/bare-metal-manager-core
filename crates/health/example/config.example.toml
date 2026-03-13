@@ -87,7 +87,7 @@ include_sensor_thresholds = true
 firmware_refresh_interval = "30m"
 
 [collectors.logs]
-mode = "sse"                                              # "sse" (default, preferred) or "periodic" (fallback)
+mode = "sse" # "sse" (default, preferred) or "periodic" (fallback)
 
 # required when mode = "periodic", must not be set when mode = "sse"
 # [collectors.logs.periodic]
