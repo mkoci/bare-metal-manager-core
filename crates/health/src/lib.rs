@@ -30,6 +30,8 @@ pub mod discovery;
 pub mod endpoint;
 pub mod limiter;
 pub mod metrics;
+pub mod otlp;
+pub mod pipeline;
 pub mod processor;
 pub mod sharding;
 pub mod sink;

@@ -77,6 +77,40 @@ impl EventProcessingPipeline {
             }
         }
     }
+
+    pub fn handle_and_collect(
+        &self,
+        context: &EventContext,
+        event: &CollectorEvent,
+    ) -> Vec<CollectorEvent> {
+        if self.processors.is_empty() {
+            self.deliver_to_sinks(context, event);
+            return vec![event.clone()];
+        }
+
+        let mut collected = Vec::new();
+        let mut queue = VecDeque::from(vec![PendingEvent {
+            event: Cow::Borrowed(event),
+            blocked_processors: vec![false; self.processors.len()],
+        }]);
+
+        while let Some(PendingEvent {
+            event: current_event,
+            blocked_processors,
+        }) = queue.pop_front()
+        {
+            self.deliver_to_sinks(context, &current_event);
+            collected.push(current_event.into_owned());
+            self.next_events(
+                context,
+                collected.last().unwrap(),
+                &blocked_processors,
+                &mut queue,
+            );
+        }
+
+        collected
+    }
 }
 
 impl DataSink for EventProcessingPipeline {
@@ -151,6 +185,53 @@ mod tests {
             collector_type: "test",
             metadata: None,
         }
+    }
+
+    #[test]
+    fn handle_and_collect_returns_original_and_derived_events() {
+        let sink_counter = Arc::new(AtomicUsize::new(0));
+        let pipeline = EventProcessingPipeline::new(
+            vec![Arc::new(SelfReemittingProcessor {
+                counter: Arc::new(AtomicUsize::new(0)),
+            })],
+            vec![Arc::new(CountingSink {
+                counter: sink_counter.clone(),
+            })],
+        );
+
+        let event = CollectorEvent::Metric(
+            crate::sink::SensorHealthData {
+                key: "k".to_string(),
+                name: "n".to_string(),
+                metric_type: "gauge".to_string(),
+                unit: "count".to_string(),
+                value: 1.0,
+                labels: Vec::new(),
+                context: None,
+            }
+            .into(),
+        );
+        let collected = pipeline.handle_and_collect(&context(), &event);
+
+        assert_eq!(collected.len(), 2);
+        assert_eq!(sink_counter.load(Ordering::SeqCst), 2);
+    }
+
+    #[test]
+    fn handle_and_collect_without_processors_returns_single_event() {
+        let sink_counter = Arc::new(AtomicUsize::new(0));
+        let pipeline = EventProcessingPipeline::new(
+            vec![],
+            vec![Arc::new(CountingSink {
+                counter: sink_counter.clone(),
+            })],
+        );
+
+        let event = CollectorEvent::MetricCollectionStart;
+        let collected = pipeline.handle_and_collect(&context(), &event);
+
+        assert_eq!(collected.len(), 1);
+        assert_eq!(sink_counter.load(Ordering::SeqCst), 1);
     }
 
     #[test]
