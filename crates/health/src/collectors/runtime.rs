@@ -40,7 +40,8 @@ use crate::discovery::BmcClient;
 use crate::endpoint::BmcEndpoint;
 use crate::limiter::RateLimiter;
 use crate::metrics::{CollectorRegistry, operation_duration_buckets_seconds};
-use crate::sink::{CollectorEvent, DataSink, EventContext};
+use crate::pipeline::EventPipeline;
+use crate::sink::{CollectorEvent, EventContext};
 
 /// Result of a collector iteration
 #[derive(Debug, Clone)]
@@ -385,7 +386,7 @@ impl Collector {
     pub fn start_streaming<S: StreamingCollector<BmcClient>>(
         endpoint: Arc<BmcEndpoint>,
         config: S::Config,
-        data_sink: Arc<dyn DataSink>,
+        pipeline: Arc<EventPipeline>,
         backoff_config: BackoffConfig,
         collector_registry: Arc<CollectorRegistry>,
         client: ReqwestClient,
@@ -506,7 +507,7 @@ impl Collector {
                     match item {
                         Some(Ok(event)) => {
                             metrics.items_processed_total.inc();
-                            data_sink.handle_event(&event_context, &event);
+                            pipeline.handle_event(&event_context, &event).await;
                         }
                         Some(Err(e)) => {
                             metrics.stream_errors_total.inc();

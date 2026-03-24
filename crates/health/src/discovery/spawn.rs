@@ -42,7 +42,7 @@ pub(super) async fn spawn_collectors_for_endpoint(
 ) -> Result<(), HealthError> {
     let key = endpoint.addr.hash_key();
     let endpoint_arc = endpoint.clone();
-    let data_sink = event_pipeline.as_ref().map(|p| p.as_data_sink());
+    let pipeline = event_pipeline;
     if let Configurable::Enabled(sensor_cfg) = &ctx.sensors_config
         && !ctx.collectors.contains(CollectorKind::Sensor, &key)
     {
@@ -55,7 +55,7 @@ pub(super) async fn spawn_collectors_for_endpoint(
             ctx.limiter.clone(),
             sensor_cfg.sensor_fetch_interval,
             SensorCollectorConfig {
-                data_sink: data_sink.clone(),
+                pipeline: pipeline.clone(),
                 state_refresh_interval: sensor_cfg.state_refresh_interval,
                 sensor_fetch_concurrency: sensor_cfg.sensor_fetch_concurrency,
                 include_sensor_thresholds: sensor_cfg.include_sensor_thresholds,
@@ -93,14 +93,14 @@ pub(super) async fn spawn_collectors_for_endpoint(
 
         let result = match logs_cfg.mode {
             LogCollectionMode::Sse => {
-                let Some(sink) = data_sink.clone() else {
-                    tracing::warn!("SSE log collector requires a data sink, skipping");
+                let Some(pipeline) = pipeline.clone() else {
+                    tracing::warn!("SSE log collector requires an event pipeline, skipping");
                     return Ok(());
                 };
                 Collector::start_streaming::<SseLogCollector<BmcClient>>(
                     endpoint_arc.clone(),
                     SseLogCollectorConfig,
-                    sink,
+                    pipeline,
                     BackoffConfig::default(),
                     collector_registry,
                     ctx.client.clone(),
@@ -144,8 +144,8 @@ pub(super) async fn spawn_collectors_for_endpoint(
                     LogsCollectorConfig {
                         state_file_path,
                         service_refresh_interval: pcfg.state_refresh_interval,
-                        log_writer,
-                        data_sink: data_sink.clone(),
+                        log_writer: Some(log_writer),
+                        pipeline: pipeline.clone(),
                     },
                     collector_registry,
                     ctx.client.clone(),
@@ -188,7 +188,7 @@ pub(super) async fn spawn_collectors_for_endpoint(
             ctx.limiter.clone(),
             firmware_cfg.firmware_refresh_interval,
             FirmwareCollectorConfig {
-                data_sink: data_sink.clone(),
+                pipeline: pipeline.clone(),
             },
             collector_registry,
             ctx.client.clone(),
@@ -227,7 +227,7 @@ pub(super) async fn spawn_collectors_for_endpoint(
             nmxt_cfg.scrape_interval,
             NmxtCollectorConfig {
                 nmxt_config: nmxt_cfg.clone(),
-                data_sink: data_sink.clone(),
+                pipeline: pipeline.clone(),
             },
             collector_registry,
             ctx.client.clone(),
@@ -267,7 +267,7 @@ pub(super) async fn spawn_collectors_for_endpoint(
             rest_cfg.poll_interval,
             NvueRestCollectorConfig {
                 rest_config: rest_cfg.clone(),
-                data_sink: data_sink.clone(),
+                pipeline: pipeline.clone(),
             },
             collector_registry,
             ctx.client.clone(),

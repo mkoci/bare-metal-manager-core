@@ -32,14 +32,15 @@ use tokio::sync::Mutex;
 use crate::HealthError;
 use crate::collectors::{IterationResult, PeriodicCollector};
 use crate::endpoint::{BmcEndpoint, EndpointMetadata};
-use crate::sink::{CollectorEvent, DataSink, EventContext, LogRecord};
+use crate::pipeline::EventPipeline;
+use crate::sink::{CollectorEvent, EventContext, LogRecord};
 
 /// Configuration for logs collector
 pub struct LogsCollectorConfig {
     pub state_file_path: PathBuf,
     pub service_refresh_interval: Duration,
-    pub log_writer: Arc<Mutex<LogFileWriter>>,
-    pub data_sink: Option<Arc<dyn DataSink>>,
+    pub log_writer: Option<Arc<Mutex<LogFileWriter>>>,
+    pub pipeline: Option<Arc<EventPipeline>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -240,8 +241,8 @@ pub struct LogsCollector<B: Bmc> {
     state_file_path: PathBuf,
     state: Option<LogsCollectorState<B>>,
     service_refresh_interval: Duration,
-    log_writer: Arc<Mutex<LogFileWriter>>,
-    data_sink: Option<Arc<dyn DataSink>>,
+    log_writer: Option<Arc<Mutex<LogFileWriter>>>,
+    pipeline: Option<Arc<EventPipeline>>,
 }
 
 impl<B: Bmc + 'static> PeriodicCollector<B> for LogsCollector<B> {
@@ -261,7 +262,7 @@ impl<B: Bmc + 'static> PeriodicCollector<B> for LogsCollector<B> {
             state: None,
             service_refresh_interval: config.service_refresh_interval,
             log_writer: config.log_writer,
-            data_sink: config.data_sink,
+            pipeline: config.pipeline,
         })
     }
 
@@ -574,8 +575,8 @@ impl<B: Bmc + 'static> LogsCollector<B> {
                     }
                     .into(),
                 );
-                if let Some(sink) = &self.data_sink {
-                    sink.handle_event(&self.event_context, &log_event);
+                if let Some(pipeline) = &self.pipeline {
+                    pipeline.handle_event(&self.event_context, &log_event).await;
                 }
 
                 if let Ok(entry_id) = entry.base.id.parse::<i32>() {
@@ -583,19 +584,21 @@ impl<B: Bmc + 'static> LogsCollector<B> {
                 }
             }
 
-            if let Err(e) = self.log_writer.lock().await.write_logs(&records).await {
-                tracing::error!(
-                    error = ?e,
-                    "Failed to write log entries to file"
-                );
-            } else {
-                if max_id > last_seen_id.unwrap_or(0) {
-                    state
-                        .last_seen_ids
-                        .insert(service.odata_id().clone(), max_id);
+            if let Some(log_writer) = &self.log_writer {
+                if let Err(e) = log_writer.lock().await.write_logs(&records).await {
+                    tracing::error!(
+                        error = ?e,
+                        "Failed to write log entries to file"
+                    );
                 }
-                total_log_count += entries.len();
             }
+
+            if max_id > last_seen_id.unwrap_or(0) {
+                state
+                    .last_seen_ids
+                    .insert(service.odata_id().clone(), max_id);
+            }
+            total_log_count += entries.len();
         }
 
         Ok(total_log_count)

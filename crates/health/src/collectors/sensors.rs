@@ -32,11 +32,12 @@ use crate::HealthError;
 use crate::collectors::{IterationResult, PeriodicCollector};
 use crate::endpoint::{BmcAddr, BmcEndpoint};
 use crate::metrics::{MetricLabel, sanitize_unit};
-use crate::sink::{CollectorEvent, DataSink, EventContext, SensorHealthContext, SensorHealthData};
+use crate::pipeline::EventPipeline;
+use crate::sink::{CollectorEvent, EventContext, SensorHealthContext, SensorHealthData};
 
 /// Configuration for sensor collector
 pub struct SensorCollectorConfig {
-    pub data_sink: Option<Arc<dyn DataSink>>,
+    pub pipeline: Option<Arc<EventPipeline>>,
     pub state_refresh_interval: Duration,
     pub sensor_fetch_concurrency: usize,
     pub include_sensor_thresholds: bool,
@@ -48,7 +49,7 @@ pub struct SensorCollector<B: Bmc> {
     bmc: Arc<B>,
     event_context: EventContext,
     state: Option<SensorCollectorState<B>>,
-    data_sink: Option<Arc<dyn DataSink>>,
+    pipeline: Option<Arc<EventPipeline>>,
     state_refresh_interval: Duration,
     sensor_fetch_concurrency: usize,
     include_sensor_thresholds: bool,
@@ -68,7 +69,7 @@ impl<B: Bmc + 'static> PeriodicCollector<B> for SensorCollector<B> {
             endpoint,
             event_context,
             state: None,
-            data_sink: config.data_sink,
+            pipeline: config.pipeline,
             state_refresh_interval: config.state_refresh_interval,
             sensor_fetch_concurrency: config.sensor_fetch_concurrency,
             include_sensor_thresholds: config.include_sensor_thresholds,
@@ -282,9 +283,9 @@ struct SensorCollectorState<B: Bmc> {
 }
 
 impl<B: Bmc + 'static> SensorCollector<B> {
-    fn emit_event(&self, event: CollectorEvent) {
-        if let Some(data_sink) = &self.data_sink {
-            data_sink.handle_event(&self.event_context, &event);
+    async fn emit_event(&self, event: CollectorEvent) {
+        if let Some(pipeline) = &self.pipeline {
+            pipeline.handle_event(&self.event_context, &event).await;
         }
     }
 
@@ -605,7 +606,7 @@ impl<B: Bmc + 'static> SensorCollector<B> {
         &self,
         state: &SensorCollectorState<B>,
     ) -> Result<usize, HealthError> {
-        self.emit_event(CollectorEvent::MetricCollectionStart);
+        self.emit_event(CollectorEvent::MetricCollectionStart).await;
         let futures: Vec<_> = state
             .entities
             .iter()
@@ -616,7 +617,7 @@ impl<B: Bmc + 'static> SensorCollector<B> {
             .buffer_unordered(self.sensor_fetch_concurrency)
             .collect()
             .await;
-        self.emit_event(CollectorEvent::MetricCollectionEnd);
+        self.emit_event(CollectorEvent::MetricCollectionEnd).await;
 
         Ok(processed.into_iter().sum())
     }
@@ -753,10 +754,11 @@ impl<B: Bmc + 'static> SensorCollector<B> {
                 }),
             }
             .into(),
-        ));
+        ))
+        .await;
 
         for metric in derived_metrics {
-            self.emit_event(CollectorEvent::Metric(metric.into()));
+            self.emit_event(CollectorEvent::Metric(metric.into())).await;
         }
 
         1

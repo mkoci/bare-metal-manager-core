@@ -118,7 +118,10 @@ impl OtlpDrainTask {
                                 retry_in = ?delay,
                                 "failed to connect to otlp collector"
                             );
-                            tokio::time::sleep(delay).await;
+                            tokio::select! {
+                                _ = self.cancel.cancelled() => return None,
+                                _ = tokio::time::sleep(delay) => {}
+                            }
                         }
                     }
                 }

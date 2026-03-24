@@ -41,21 +41,29 @@ impl EventPipeline {
     }
 
     pub async fn handle_event(&self, context: &EventContext, event: &CollectorEvent) {
-        let all_events = self.inner.handle_and_collect(context, event);
+        let Some(sender) = &self.otlp_sender else {
+            self.inner.handle_event(context, event);
+            return;
+        };
 
-        if let Some(sender) = &self.otlp_sender {
-            for evt in all_events {
-                if sender.send((context.clone(), evt)).await.is_err() {
-                    tracing::warn!("otlp channel closed, event dropped");
-                    break;
-                }
+        for evt in self.inner.handle_and_collect(context, event) {
+            if is_otlp_relevant(&evt)
+                && sender.send((context.clone(), evt)).await.is_err()
+            {
+                tracing::warn!("otlp channel closed, event dropped");
+                break;
             }
         }
     }
+}
 
-    pub fn as_data_sink(&self) -> Arc<dyn DataSink> {
-        Arc::clone(&self.inner) as Arc<dyn DataSink>
-    }
+fn is_otlp_relevant(event: &CollectorEvent) -> bool {
+    !matches!(
+        event,
+        CollectorEvent::Metric(_)
+            | CollectorEvent::MetricCollectionStart
+            | CollectorEvent::MetricCollectionEnd
+    )
 }
 
 #[cfg(test)]
@@ -69,6 +77,7 @@ mod tests {
 
     use super::*;
     use crate::endpoint::BmcAddr;
+    use crate::sink::LogRecord;
     use crate::sink::DataSink;
 
     struct CountingSink {
@@ -94,6 +103,14 @@ mod tests {
         }
     }
 
+    fn log_event() -> CollectorEvent {
+        CollectorEvent::Log(Box::new(LogRecord {
+            body: "test".to_string(),
+            severity: "INFO".to_string(),
+            attributes: vec![],
+        }))
+    }
+
     #[tokio::test]
     async fn sync_sinks_complete_before_otlp_send() {
         let sink_counter = Arc::new(AtomicUsize::new(0));
@@ -106,13 +123,23 @@ mod tests {
         let (otlp_tx, mut otlp_rx) = tokio::sync::mpsc::channel(10);
         let pipeline = EventPipeline::new(inner, Some(otlp_tx));
 
-        let context = test_context();
-        let event = CollectorEvent::MetricCollectionStart;
-        pipeline.handle_event(&context, &event).await;
+        pipeline.handle_event(&test_context(), &log_event()).await;
 
         assert_eq!(sink_counter.load(Ordering::SeqCst), 1);
-        let received = otlp_rx.try_recv();
-        assert!(received.is_ok());
+        assert!(otlp_rx.try_recv().is_ok());
+    }
+
+    #[tokio::test]
+    async fn metric_events_are_filtered_from_otlp_channel() {
+        let inner = EventProcessingPipeline::new(vec![], vec![]);
+        let (otlp_tx, mut otlp_rx) = tokio::sync::mpsc::channel(10);
+        let pipeline = EventPipeline::new(inner, Some(otlp_tx));
+
+        pipeline
+            .handle_event(&test_context(), &CollectorEvent::MetricCollectionStart)
+            .await;
+
+        assert!(otlp_rx.try_recv().is_err());
     }
 
     #[tokio::test]
@@ -126,9 +153,7 @@ mod tests {
         );
         let pipeline = EventPipeline::new(inner, None);
 
-        let context = test_context();
-        let event = CollectorEvent::MetricCollectionStart;
-        pipeline.handle_event(&context, &event).await;
+        pipeline.handle_event(&test_context(), &log_event()).await;
 
         assert_eq!(sink_counter.load(Ordering::SeqCst), 1);
     }
@@ -139,22 +164,49 @@ mod tests {
         let (otlp_tx, _otlp_rx) = tokio::sync::mpsc::channel(1);
         let pipeline = Arc::new(EventPipeline::new(inner, Some(otlp_tx)));
 
-        let context = test_context();
-        let event = CollectorEvent::MetricCollectionStart;
+        let event = log_event();
+        pipeline.handle_event(&test_context(), &event).await;
 
-        // first send fills the channel
-        pipeline.handle_event(&context, &event).await;
-
-        // second send should not complete within the timeout (channel full)
         let pipeline_clone = Arc::clone(&pipeline);
-        let ctx = context.clone();
-        let evt = event.clone();
         let result = tokio::time::timeout(
             std::time::Duration::from_millis(50),
-            pipeline_clone.handle_event(&ctx, &evt),
+            pipeline_clone.handle_event(&test_context(), &event),
         )
         .await;
 
         assert!(result.is_err(), "expected timeout due to full channel");
+    }
+
+    #[tokio::test]
+    async fn processor_derived_events_reach_otlp_channel() {
+        use crate::processor::EventProcessor;
+
+        struct DoubleProcessor;
+        impl EventProcessor for DoubleProcessor {
+            fn process_event(
+                &self,
+                _: &EventContext,
+                event: &CollectorEvent,
+            ) -> Vec<CollectorEvent> {
+                vec![event.clone()]
+            }
+        }
+
+        let sink_counter = Arc::new(AtomicUsize::new(0));
+        let inner = EventProcessingPipeline::new(
+            vec![Arc::new(DoubleProcessor)],
+            vec![Arc::new(CountingSink {
+                counter: sink_counter.clone(),
+            })],
+        );
+        let (otlp_tx, mut otlp_rx) = tokio::sync::mpsc::channel(10);
+        let pipeline = EventPipeline::new(inner, Some(otlp_tx));
+
+        pipeline.handle_event(&test_context(), &log_event()).await;
+
+        assert_eq!(sink_counter.load(Ordering::SeqCst), 2);
+        assert!(otlp_rx.try_recv().is_ok());
+        assert!(otlp_rx.try_recv().is_ok());
+        assert!(otlp_rx.try_recv().is_err());
     }
 }
