@@ -15,15 +15,17 @@
  * limitations under the License.
  */
 
+use std::sync::Arc;
+
 use tokio::sync::mpsc;
 
 use crate::processor::EventProcessingPipeline;
-use crate::sink::{CollectorEvent, EventContext};
+use crate::sink::{CollectorEvent, DataSink, EventContext};
 
 /// sync pipeline + optional bounded OTLP channel. the channel send is the
 /// backpressure point; sync sinks always complete before it.
 pub struct EventPipeline {
-    inner: EventProcessingPipeline,
+    inner: Arc<EventProcessingPipeline>,
     otlp_sender: Option<mpsc::Sender<(EventContext, CollectorEvent)>>,
 }
 
@@ -33,7 +35,7 @@ impl EventPipeline {
         otlp_sender: Option<mpsc::Sender<(EventContext, CollectorEvent)>>,
     ) -> Self {
         Self {
-            inner,
+            inner: Arc::new(inner),
             otlp_sender,
         }
     }
@@ -49,6 +51,10 @@ impl EventPipeline {
                 }
             }
         }
+    }
+
+    pub fn as_data_sink(&self) -> Arc<dyn DataSink> {
+        Arc::clone(&self.inner) as Arc<dyn DataSink>
     }
 }
 

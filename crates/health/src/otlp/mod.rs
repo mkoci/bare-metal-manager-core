@@ -15,6 +15,9 @@
  * limitations under the License.
  */
 
+pub mod convert;
+pub mod drain;
+
 #[allow(clippy::all)]
 pub mod opentelemetry {
     pub mod proto {

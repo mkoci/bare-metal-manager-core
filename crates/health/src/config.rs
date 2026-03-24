@@ -126,6 +126,9 @@ pub struct SinksConfig {
     /// Health override sink: sends health override events to Carbide API.
     #[serde(alias = "carbide_override")]
     pub health_override: Configurable<CarbideApiConnectionConfig>,
+
+    /// OTLP log export sink: streams events to an OpenTelemetry collector via gRPC.
+    pub otlp: Configurable<OtlpSinkConfig>,
 }
 
 impl Default for SinksConfig {
@@ -134,6 +137,7 @@ impl Default for SinksConfig {
             tracing: Configurable::Enabled(TracingSinkConfig::default()),
             prometheus: Configurable::Enabled(PrometheusSinkConfig::default()),
             health_override: Configurable::Enabled(CarbideApiConnectionConfig::default()),
+            otlp: Configurable::Disabled,
         }
     }
 }
@@ -145,6 +149,27 @@ pub struct TracingSinkConfig {}
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(default)]
 pub struct PrometheusSinkConfig {}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct OtlpSinkConfig {
+    pub endpoint: String,
+    pub batch_size: usize,
+    #[serde(with = "humantime_serde")]
+    pub flush_interval: std::time::Duration,
+    pub channel_capacity: usize,
+}
+
+impl Default for OtlpSinkConfig {
+    fn default() -> Self {
+        Self {
+            endpoint: "http://localhost:4317".to_string(),
+            batch_size: 512,
+            flush_interval: std::time::Duration::from_secs(2),
+            channel_capacity: 2000,
+        }
+    }
+}
 
 /// Shared Carbide API connection configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]

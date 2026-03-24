@@ -28,7 +28,7 @@ use crate::collectors::{
 };
 use crate::config::{Configurable, LogCollectionMode};
 use crate::endpoint::{BmcEndpoint, EndpointMetadata};
-use crate::sink::DataSink;
+use crate::pipeline::EventPipeline;
 
 fn logs_state_file_path(template: &str, endpoint_id: &str) -> PathBuf {
     PathBuf::from(template.replace("{machine_id}", endpoint_id))
@@ -37,11 +37,12 @@ fn logs_state_file_path(template: &str, endpoint_id: &str) -> PathBuf {
 pub(super) async fn spawn_collectors_for_endpoint(
     ctx: &mut DiscoveryLoopContext,
     endpoint: &Arc<BmcEndpoint>,
-    data_sink: Option<Arc<dyn DataSink>>,
+    event_pipeline: Option<Arc<EventPipeline>>,
     metrics_prefix: &str,
 ) -> Result<(), HealthError> {
     let key = endpoint.addr.hash_key();
     let endpoint_arc = endpoint.clone();
+    let data_sink = event_pipeline.as_ref().map(|p| p.as_data_sink());
     if let Configurable::Enabled(sensor_cfg) = &ctx.sensors_config
         && !ctx.collectors.contains(CollectorKind::Sensor, &key)
     {
