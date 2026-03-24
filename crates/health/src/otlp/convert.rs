@@ -228,17 +228,20 @@ mod tests {
     #[test]
     fn health_report_converts_with_alert_severity() {
         let ctx = test_context();
-        let report = CollectorEvent::HealthReport(HealthReport {
-            source: ReportSource::BmcSensors,
-            observed_at: None,
-            successes: vec![],
-            alerts: vec![HealthReportAlert {
-                probe_id: Probe::Sensor,
-                target: Some("Temp1".to_string()),
-                message: "critical".to_string(),
-                classifications: vec![Classification::SensorCritical],
-            }],
-        });
+        let report = CollectorEvent::HealthReport(
+            HealthReport {
+                source: ReportSource::BmcSensors,
+                observed_at: None,
+                successes: vec![],
+                alerts: vec![HealthReportAlert {
+                    probe_id: Probe::Sensor,
+                    target: Some("Temp1".to_string()),
+                    message: "critical".to_string(),
+                    classifications: vec![Classification::SensorCritical],
+                }],
+            }
+            .into(),
+        );
 
         let request = build_export_request(&[(ctx, report)]);
         let records = &request.resource_logs[0].scope_logs[0].log_records;
