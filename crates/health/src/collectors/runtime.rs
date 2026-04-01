@@ -341,7 +341,7 @@ impl Collector {
             loop {
                 tokio::select! {
                     _ = cancel_token_clone.cancelled() => {
-                        tracing::info!("Collector cancelled for addr: {:?}", endpoint.addr);
+                        tracing::info!(endpoint = ?endpoint.addr, "collector cancelled");
                         break;
                     }
                     _ = async {

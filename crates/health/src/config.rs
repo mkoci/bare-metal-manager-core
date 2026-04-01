@@ -599,6 +599,11 @@ impl Config {
             logs.validate()?;
         }
 
+        if let Configurable::Enabled(ref otlp) = self.sinks.otlp {
+            tonic::transport::Channel::from_shared(otlp.endpoint.clone())
+                .map_err(|_| format!("invalid sinks.otlp.endpoint: {}", otlp.endpoint))?;
+        }
+
         self.metrics_addr()?;
 
         Ok(())
@@ -891,6 +896,15 @@ cache_size = 50
         assert!(config.validate().is_ok());
 
         config.collectors.logs = Configurable::Disabled;
+        assert!(config.validate().is_ok());
+
+        config.sinks.otlp = Configurable::Enabled(OtlpSinkConfig {
+            endpoint: "not a valid uri\n".to_string(),
+            ..OtlpSinkConfig::default()
+        });
+        assert!(config.validate().is_err());
+
+        config.sinks.otlp = Configurable::Enabled(OtlpSinkConfig::default());
         assert!(config.validate().is_ok());
     }
 
