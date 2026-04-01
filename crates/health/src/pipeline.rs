@@ -46,12 +46,10 @@ impl EventPipeline {
             return;
         };
 
-        // TODO: fix waste: context is cloned per otlp-relevant event 
+        // TODO: fix waste: context is cloned per otlp-relevant event
         // probably better to switch channel to Arc<EventContext> to pay for one allocation instead of N clones
         for evt in self.inner.handle_and_collect(context, event) {
-            if is_otlp_relevant(&evt)
-                && sender.send((context.clone(), evt)).await.is_err()
-            {
+            if is_otlp_relevant(&evt) && sender.send((context.clone(), evt)).await.is_err() {
                 tracing::warn!("otlp channel closed, event dropped");
                 break;
             }
@@ -79,8 +77,7 @@ mod tests {
 
     use super::*;
     use crate::endpoint::BmcAddr;
-    use crate::sink::LogRecord;
-    use crate::sink::DataSink;
+    use crate::sink::{DataSink, LogRecord};
 
     struct CountingSink {
         counter: Arc<AtomicUsize>,

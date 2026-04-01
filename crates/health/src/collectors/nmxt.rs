@@ -244,7 +244,8 @@ impl NmxtCollector {
                     context: None,
                 }
                 .into(),
-            )).await;
+            ))
+            .await;
         }
 
         self.emit_event(CollectorEvent::MetricCollectionEnd).await;

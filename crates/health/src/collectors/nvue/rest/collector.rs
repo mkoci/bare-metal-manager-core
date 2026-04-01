@@ -118,7 +118,8 @@ impl<B: Bmc + 'static> PeriodicCollector<B> for NvueRestCollector {
         match self.client.get_system_health().await {
             Ok(Some(health)) => {
                 let value = system_health_to_f64(health.status.as_deref());
-                self.emit_metric("system_health", None, value, "state", vec![]).await;
+                self.emit_metric("system_health", None, value, "state", vec![])
+                    .await;
                 entity_count += 1;
             }
             Ok(None) => {}

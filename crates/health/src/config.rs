@@ -874,8 +874,7 @@ cache_size = 50
         });
         assert!(config.validate().is_err());
 
-        config.sinks.health_override =
-            Configurable::Enabled(HealthOverrideSinkConfig::default());
+        config.sinks.health_override = Configurable::Enabled(HealthOverrideSinkConfig::default());
 
         config.collectors.logs = Configurable::Enabled(LogsCollectorConfig {
             mode: LogCollectionMode::Periodic,

@@ -61,10 +61,7 @@ fn resource_attributes(context: &EventContext) -> Vec<KeyValue> {
     attrs
 }
 
-fn convert_log(
-    log: &crate::sink::LogRecord,
-    observed_nanos: u64,
-) -> OtlpLogRecord {
+fn convert_log(log: &crate::sink::LogRecord, observed_nanos: u64) -> OtlpLogRecord {
     let attributes = log
         .attributes
         .iter()
@@ -126,9 +123,7 @@ fn convert_event(event: &CollectorEvent, observed_nanos: u64) -> Option<OtlpLogR
 }
 
 /// groups a batch of events by endpoint and builds an ExportLogsServiceRequest with only logs
-pub fn build_export_request(
-    batch: &[(EventContext, CollectorEvent)],
-) -> ExportLogsServiceRequest {
+pub fn build_export_request(batch: &[(EventContext, CollectorEvent)]) -> ExportLogsServiceRequest {
     let observed_nanos = SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)
         .unwrap_or_default()
@@ -208,10 +203,7 @@ mod tests {
         let records = &request.resource_logs[0].scope_logs[0].log_records;
         assert_eq!(records.len(), 1);
         assert_eq!(records[0].severity_text, "WARNING");
-        assert_eq!(
-            records[0].severity_number,
-            SeverityNumber::Warn as i32
-        );
+        assert_eq!(records[0].severity_number, SeverityNumber::Warn as i32);
     }
 
     #[test]

@@ -102,7 +102,8 @@ impl<B: Bmc + 'static> FirmwareCollector<B> {
                 component,
                 version,
                 attributes,
-            })).await;
+            }))
+            .await;
             firmware_count += 1;
         }
 
