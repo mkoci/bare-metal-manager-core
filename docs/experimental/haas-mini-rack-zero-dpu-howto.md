@@ -1,8 +1,9 @@
 # Mini-Rack Deployment — Static IP + Zero-DPU Bypass
 
 > Author: [mkoci](mailto:mkoci@nvidia.com)
-> Based on: [`mrgalaxy/static-ip`](https://github.com/mrgalaxy-source/bare-metal-manager-core/tree/mrgalaxy/static-ip) branch ([PR #757](https://github.com/NVIDIA/ncx-infra-controller-core/pull/757)) by [mgalaxy](mailto:mrgalaxy@nvidia.com)'s
-> Zero-DPU approach informed by [Vinod](mailto:vchitrali@nvidia.com)'s and [Syd](mailto:sydneyl)'s 72x1 deployment
+> Branch: [`mkoci/static-ip-plus-zero-dpu`](https://github.com/mkoci/bare-metal-manager-core/tree/mkoci/static-ip-plus-zero-dpu)
+> Based on: [`mrgalaxy/static-ip`](https://github.com/mrgalaxy-source/bare-metal-manager-core/tree/mrgalaxy/static-ip) branch ([PR #757](https://github.com/NVIDIA/ncx-infra-controller-core/pull/757)) by [mgalaxy](mailto:mrgalaxy@nvidia.com)
+> Zero-DPU approach informed by [Vinod](mailto:vchitrali@nvidia.com)'s and [Syd](mailto:sydneyl@nvidia.com)'s 72x1 deployment
 > Site controller: `forge-lite-controller` at 10.86.160.103
 
 ## Background
@@ -57,31 +58,47 @@ git clone ssh://git@gitlab-master.nvidia.com:12051/swserver/RackManagementServic
 
 ### Create your env file
 
-This is the mini-rack equivalent of `my_localdev_env.sh` from the Confluence
-guide, but configured for rack mode with the static IP branch:
+Create `~/environments/scripts/setup/mini_devenv.sh`. This is the mini-rack
+equivalent of `my_localdev_env.sh` from the Confluence guide, but configured
+for rack mode with the static IP branch:
 
 ```bash
 # ~/environments/scripts/setup/mini_devenv.sh
 
-export GITHUB_USER=mrgalaxy-source
-export GITHUB_REPO_NAME=bare-metal-manager-core
-export CARBIDE_BRANCH=mrgalaxy/static-ip
-
-export AGE_SECRET_KEY=<your key>
-export NGC_API_TOKEN=<your token>
+export GITHUB_USER=mkoci             # use mkoci's fork (static IP + zero-DPU bypass)
+                                     # alternatively: mrgalaxy-source (static IP only, no zero-DPU)
+# export USE_GITLAB=1               # do NOT set — we are pulling from github, not gitlab
+export CARBIDE_BRANCH=              # overridden below
+export AGE_SECRET_KEY=AGE-SECRET-KEY-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+export NGC_API_TOKEN=nvapi-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 export NVCR_AUTH_TOKEN=$(echo -n "\$oauthtoken:$NGC_API_TOKEN" | base64 -w0)
 export ROOT_EXEC_CMD=sudo
 export CARGO_HOME=$HOME/.cargo
 
-# rack mode — do NOT set LOCAL_DEV
-export NO_TEST=1
+export GITHUB_REPO_NAME=bare-metal-manager-core
+export CARBIDE_BRANCH=mkoci/static-ip-plus-zero-dpu  # includes zero-DPU bypass
+                                                      # use mrgalaxy/static-ip if using mrgalaxy-source fork
+
+# rack mode — LOCAL_DEV is intentionally NOT set. this deploys via forged/k3s,
+# not skaffold. do NOT run post_run.sh (that's local-dev only).
+# export LOCAL_DEV=1
+
+# first run: unset NO_PRE_SETUP so tooling gets installed.
+# subsequent runs: set it to skip apt/docker/go setup.
+# export NO_PRE_SETUP=1
+
+export NO_TEST=1  # skip cargo tests — they fail in this config and aren't relevant for bring-up
+# unset NO_BUILD  # do NOT set NO_BUILD — we need to clone and compile from source
 ```
 
 Important differences from the Confluence local-dev guide:
-- We clone from `mrgalaxy-source` (the static IP fork), not your own fork
-- We use `mrgalaxy/static-ip` branch, not `main`
-- `LOCAL_DEV` is **not set** — this is rack mode
-- `NO_TEST=1` because the tests will fail in this config
+- `GITHUB_USER=mrgalaxy-source` — clones the static IP fork, not your own or NVIDIA upstream
+- `GITHUB_REPO_NAME=bare-metal-manager-core` — the repo was renamed from `carbide-core` but the fork still uses the old name
+- `CARBIDE_BRANCH=mrgalaxy/static-ip` — the static IP feature branch
+- `LOCAL_DEV` is **not set** — this deploys in rack mode via forged, not skaffold
+- `USE_GITLAB` is **not set** — we pull from github (the static IP branch isn't on gitlab)
+- `NO_TEST=1` — tests will fail and aren't useful during bring-up
+- `NO_BUILD` is **not set** — the script needs to clone and build carbide from source
 
 ### Run first_run.sh
 
