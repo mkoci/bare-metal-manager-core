@@ -15,19 +15,23 @@
  * limitations under the License.
  */
 
-mod firmware;
-mod logs;
-mod nmxt;
-mod nvue;
-mod runtime;
-mod sensors;
+use std::path::PathBuf;
 
-pub use firmware::{FirmwareCollector, FirmwareCollectorConfig};
-pub use logs::{LogsCollector, LogsCollectorConfig, SseLogCollector, SseLogCollectorConfig};
-pub use nmxt::{NmxtCollector, NmxtCollectorConfig};
-pub use nvue::rest::collector::{NvueRestCollector, NvueRestCollectorConfig};
-pub use runtime::{
-    BackoffConfig, Collector, CollectorStartContext, EventStream, ExponentialBackoff,
-    IterationResult, PeriodicCollector, StreamMetrics, StreamingCollector, open_sse_stream,
-};
-pub use sensors::{SensorCollector, SensorCollectorConfig};
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    carbide_version::build();
+
+    // vendored from opentelemetry-proto v1.5.0
+    let proto_dir = PathBuf::from("proto");
+
+    println!("cargo:rerun-if-changed=proto/");
+
+    tonic_prost_build::configure()
+        .build_server(false)
+        .build_client(true)
+        .compile_protos(
+            &[proto_dir.join("opentelemetry/proto/collector/logs/v1/logs_service.proto")],
+            &[proto_dir],
+        )?;
+
+    Ok(())
+}
