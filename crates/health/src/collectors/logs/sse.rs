@@ -91,14 +91,22 @@ fn event_to_logs<B: Bmc>(event: &Event, bmc: &B) -> Vec<Result<CollectorEvent, H
         .events
         .iter()
         .flat_map(|nav| {
-            // This should resolve immediately and always be expanded for SSE payloads
             let resolved = futures::FutureExt::now_or_never(nav.get(bmc));
             if resolved.is_none() {
-                tracing::warn!("SSE event record requires additional fetch to resolve -- this is unexpected, skipping");
+                tracing::warn!(
+                    odata_id = %nav.odata_id(),
+                    "sse event record requires additional fetch to resolve, skipping"
+                );
             }
             resolved
         })
-        .filter_map(|result| result.ok())
+        .filter_map(|result| match result {
+            Ok(record) => Some(record),
+            Err(error) => {
+                tracing::warn!(?error, "failed to resolve sse event record, skipping");
+                None
+            }
+        })
         .map(|record| {
             let body = record.message.as_deref().unwrap_or("").to_string();
 

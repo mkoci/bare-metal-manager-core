@@ -141,27 +141,26 @@ pub(super) async fn spawn_collectors_for_endpoint(
             }
         };
 
-        if let Some(result) = result {
-            match result {
-                Ok(collector) => {
-                    ctx.collectors
-                        .insert(CollectorKind::Logs, key.clone(), collector);
-                    tracing::info!(
-                        endpoint_key = %key,
-                        mode = ?logs_cfg.mode,
-                        total_collectors = ctx.collectors.len(CollectorKind::Logs),
-                        "Started logs collection for BMC endpoint"
-                    );
-                }
-                Err(error) => {
-                    tracing::error!(
-                        ?error,
-                        mode = ?logs_cfg.mode,
-                        "Could not start logs collector for: {:?}",
-                        endpoint.addr
-                    )
-                }
+        match result {
+            Some(Ok(collector)) => {
+                ctx.collectors
+                    .insert(CollectorKind::Logs, key.clone(), collector);
+                tracing::info!(
+                    endpoint_key = %key,
+                    mode = ?logs_cfg.mode,
+                    total_collectors = ctx.collectors.len(CollectorKind::Logs),
+                    "Started logs collection for BMC endpoint"
+                );
             }
+            Some(Err(error)) => {
+                tracing::error!(
+                    ?error,
+                    mode = ?logs_cfg.mode,
+                    "Could not start logs collector for: {:?}",
+                    endpoint.addr
+                );
+            }
+            None => {}
         }
     }
 

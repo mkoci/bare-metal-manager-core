@@ -151,10 +151,10 @@ impl SyncLogFileWriter {
 
     fn write_line(&mut self, line: &str) -> Result<(), String> {
         let bytes = line.as_bytes();
-        // +1 for the trailing newline
-        let write_size = bytes.len() as u64 + 1;
+        let write_size = bytes.len() as u64 + 1; // +1 for trailing newline
 
-        self.rotate_if_needed()?;
+        // a single line larger than max_file_size is allowed into a fresh file
+        self.rotate_if_needed(write_size)?;
 
         let file = self.current_file.as_mut().ok_or("log file not open")?;
 
@@ -167,8 +167,8 @@ impl SyncLogFileWriter {
         Ok(())
     }
 
-    fn rotate_if_needed(&mut self) -> Result<(), String> {
-        if self.current_size < self.max_file_size {
+    fn rotate_if_needed(&mut self, pending_size: u64) -> Result<(), String> {
+        if self.current_size + pending_size <= self.max_file_size {
             return Ok(());
         }
 
