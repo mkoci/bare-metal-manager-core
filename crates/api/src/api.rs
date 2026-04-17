@@ -539,6 +539,27 @@ impl Forge for Api {
         crate::handlers::rack::remove_rack_health_report_override(self, request).await
     }
 
+    async fn list_switch_health_reports(
+        &self,
+        request: Request<rpc::ListSwitchHealthReportsRequest>,
+    ) -> Result<Response<rpc::ListHealthReportOverrideResponse>, Status> {
+        crate::handlers::switch::list_switch_health_reports(self, request).await
+    }
+
+    async fn insert_switch_health_report(
+        &self,
+        request: Request<rpc::InsertSwitchHealthReportRequest>,
+    ) -> Result<Response<()>, Status> {
+        crate::handlers::switch::insert_switch_health_report(self, request).await
+    }
+
+    async fn remove_switch_health_report(
+        &self,
+        request: Request<rpc::RemoveSwitchHealthReportRequest>,
+    ) -> Result<Response<()>, Status> {
+        crate::handlers::switch::remove_switch_health_report(self, request).await
+    }
+
     async fn get_all_domain_metadata(
         &self,
         request: Request<DomainMetadataRequest>,
@@ -1108,11 +1129,11 @@ impl Forge for Api {
         crate::handlers::rack::delete_rack(self, request).await
     }
 
-    async fn get_rack_capabilities(
+    async fn get_rack_profile(
         &self,
-        request: Request<rpc::GetRackCapabilitiesRequest>,
-    ) -> Result<Response<rpc::GetRackCapabilitiesResponse>, Status> {
-        crate::handlers::rack::get_rack_capabilities(self, request).await
+        request: Request<rpc::GetRackProfileRequest>,
+    ) -> Result<Response<rpc::GetRackProfileResponse>, Status> {
+        crate::handlers::rack::get_rack_profile(self, request).await
     }
 
     /// Trigger DPU reprovisioning
@@ -1142,6 +1163,14 @@ impl Forge for Api {
         request: Request<MachineId>,
     ) -> Result<Response<()>, Status> {
         crate::handlers::host_reprovisioning::mark_manual_firmware_upgrade_complete(self, request)
+            .await
+    }
+
+    async fn report_scout_firmware_upgrade_status(
+        &self,
+        request: Request<rpc::ScoutFirmwareUpgradeStatusRequest>,
+    ) -> Result<Response<()>, Status> {
+        crate::handlers::host_reprovisioning::report_scout_firmware_upgrade_status(self, request)
             .await
     }
 
@@ -3253,7 +3282,7 @@ pub(crate) fn log_tenant_organization_id(organization_id: &str) {
     tracing::Span::current().record("tenant.organization_id", organization_id);
 }
 
-fn truncate(mut s: String, len: usize) -> String {
+pub(crate) fn truncate(mut s: String, len: usize) -> String {
     if s.len() < len || len < 3 {
         return s;
     }
